@@ -1,157 +1,228 @@
-import React, { useState } from 'react';
+/**
+ * Auth Screen — Magic link / OTP sign-in
+ * Light theme, two steps: email → 6-digit code
+ */
+import React, { useState, useRef } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
   StyleSheet, KeyboardAvoidingView, Platform,
-  ActivityIndicator, Alert,
+  ActivityIndicator, Alert, SafeAreaView, StatusBar,
 } from 'react-native';
 import { useAuth } from '../../hooks/useAuth';
-import { COLORS, SPACING, RADIUS } from '../../constants/theme';
+import { COLORS, SPACING, RADIUS, SHADOW } from '../../constants/theme';
+
+type Step = 'email' | 'otp';
 
 export default function AuthScreen() {
   const { signInWithOTP, verifyOTP } = useAuth();
-  const [email, setEmail] = useState('');
-  const [otp, setOtp] = useState('');
-  const [step, setStep] = useState<'email' | 'otp'>('email');
+  const [email,   setEmail]   = useState('');
+  const [otp,     setOtp]     = useState('');
+  const [step,    setStep]    = useState<Step>('email');
   const [loading, setLoading] = useState(false);
+  const otpRef = useRef<TextInput>(null);
 
   const handleSendOTP = async () => {
-    if (!email.trim()) return;
+    const trimmed = email.trim().toLowerCase();
+    if (!trimmed) return;
     setLoading(true);
-    const { error } = await signInWithOTP(email.trim().toLowerCase());
+    const { error } = await signInWithOTP(trimmed);
     setLoading(false);
     if (error) {
       Alert.alert('Error', error.message);
     } else {
       setStep('otp');
+      setTimeout(() => otpRef.current?.focus(), 300);
     }
   };
 
   const handleVerifyOTP = async () => {
-    if (!otp.trim()) return;
+    const trimmed = otp.trim();
+    if (trimmed.length < 6) return;
     setLoading(true);
-    const { error } = await verifyOTP(email.trim().toLowerCase(), otp.trim());
+    const { error } = await verifyOTP(email.trim().toLowerCase(), trimmed);
     setLoading(false);
     if (error) {
-      Alert.alert('Invalid code', 'Please check the code and try again.');
+      Alert.alert('Invalid code', 'Check the code and try again, or request a new one.');
+      setOtp('');
     }
   };
 
-  return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
-      <View style={styles.inner}>
-        {/* Logo area */}
-        <Text style={styles.logo}>⛳</Text>
-        <Text style={styles.title}>Golf Scoring</Text>
-        <Text style={styles.subtitle}>Ryder Cup-style competition tracker</Text>
+  const handleResend = async () => {
+    setOtp('');
+    setLoading(true);
+    await signInWithOTP(email.trim().toLowerCase());
+    setLoading(false);
+    Alert.alert('Code resent', 'Check your email for a new code.');
+  };
 
-        <View style={styles.card}>
-          {step === 'email' ? (
-            <>
-              <Text style={styles.label}>Enter your email to sign in</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="you@example.com"
-                placeholderTextColor={COLORS.textMuted}
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoComplete="email"
-              />
-              <TouchableOpacity
-                style={[styles.button, !email.trim() && styles.buttonDisabled]}
-                onPress={handleSendOTP}
-                disabled={loading || !email.trim()}
-              >
-                {loading ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <Text style={styles.buttonText}>Send Magic Code →</Text>
-                )}
-              </TouchableOpacity>
-            </>
-          ) : (
-            <>
-              <Text style={styles.label}>Check your email</Text>
-              <Text style={styles.hint}>We sent a 6-digit code to {email}</Text>
-              <TextInput
-                style={[styles.input, styles.otpInput]}
-                placeholder="000000"
-                placeholderTextColor={COLORS.textMuted}
-                value={otp}
-                onChangeText={setOtp}
-                keyboardType="number-pad"
-                maxLength={6}
-                autoFocus
-              />
-              <TouchableOpacity
-                style={[styles.button, otp.length < 6 && styles.buttonDisabled]}
-                onPress={handleVerifyOTP}
-                disabled={loading || otp.length < 6}
-              >
-                {loading ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <Text style={styles.buttonText}>Verify →</Text>
-                )}
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => setStep('email')} style={styles.backLink}>
-                <Text style={styles.backLinkText}>← Use different email</Text>
-              </TouchableOpacity>
-            </>
-          )}
+  return (
+    <SafeAreaView style={styles.safe}>
+      <StatusBar barStyle="dark-content" backgroundColor={COLORS.background} />
+      <KeyboardAvoidingView
+        style={styles.kav}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <View style={styles.inner}>
+
+          {/* ── Logo ── */}
+          <View style={styles.logoWrap}>
+            <Text style={styles.logoEmoji}>⛳</Text>
+          </View>
+          <Text style={styles.appName}>Golf Society</Text>
+          <Text style={styles.tagline}>Ryder Cup-style match play scoring</Text>
+
+          {/* ── Card ── */}
+          <View style={styles.card}>
+
+            {step === 'email' ? (
+              <>
+                <Text style={styles.cardTitle}>Sign in</Text>
+                <Text style={styles.cardSubtitle}>We'll email you a one-time code — no password needed.</Text>
+
+                <Text style={styles.label}>EMAIL ADDRESS</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="you@example.com"
+                  placeholderTextColor={COLORS.textMuted}
+                  value={email}
+                  onChangeText={setEmail}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoComplete="email"
+                  returnKeyType="send"
+                  onSubmitEditing={handleSendOTP}
+                />
+
+                <TouchableOpacity
+                  style={[styles.btn, (!email.trim() || loading) && styles.btnDisabled]}
+                  onPress={handleSendOTP}
+                  disabled={!email.trim() || loading}
+                  activeOpacity={0.85}
+                >
+                  {loading
+                    ? <ActivityIndicator color={COLORS.white} />
+                    : <Text style={styles.btnText}>Send Magic Code</Text>
+                  }
+                </TouchableOpacity>
+              </>
+            ) : (
+              <>
+                <Text style={styles.cardTitle}>Check your email</Text>
+                <Text style={styles.cardSubtitle}>
+                  We sent a 6-digit code to{'\n'}
+                  <Text style={styles.emailHighlight}>{email}</Text>
+                </Text>
+
+                <Text style={styles.label}>6-DIGIT CODE</Text>
+                <TextInput
+                  ref={otpRef}
+                  style={[styles.input, styles.otpInput]}
+                  placeholder="——————"
+                  placeholderTextColor={COLORS.border}
+                  value={otp}
+                  onChangeText={v => {
+                    setOtp(v.replace(/\D/g, '').slice(0, 6));
+                  }}
+                  keyboardType="number-pad"
+                  maxLength={6}
+                  returnKeyType="done"
+                  onSubmitEditing={handleVerifyOTP}
+                />
+
+                <TouchableOpacity
+                  style={[styles.btn, (otp.length < 6 || loading) && styles.btnDisabled]}
+                  onPress={handleVerifyOTP}
+                  disabled={otp.length < 6 || loading}
+                  activeOpacity={0.85}
+                >
+                  {loading
+                    ? <ActivityIndicator color={COLORS.white} />
+                    : <Text style={styles.btnText}>Verify & Sign In</Text>
+                  }
+                </TouchableOpacity>
+
+                <View style={styles.otpFooter}>
+                  <TouchableOpacity onPress={() => { setStep('email'); setOtp(''); }}>
+                    <Text style={styles.secondaryLink}>← Different email</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={handleResend}>
+                    <Text style={styles.secondaryLink}>Resend code</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
+          </View>
+
+          {/* ── Footer ── */}
+          <Text style={styles.footer}>
+            By signing in you agree to use this app responsibly and respect your playing partners.
+          </Text>
         </View>
-      </View>
-    </KeyboardAvoidingView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
-  inner: { flex: 1, justifyContent: 'center', padding: SPACING.lg },
-  logo: { fontSize: 64, textAlign: 'center', marginBottom: SPACING.sm },
-  title: {
-    fontSize: 32, fontWeight: '800', color: COLORS.text,
-    textAlign: 'center', marginBottom: 4,
+  safe: { flex: 1, backgroundColor: COLORS.background },
+  kav:  { flex: 1 },
+  inner: {
+    flex: 1, justifyContent: 'center',
+    padding: SPACING.lg, gap: SPACING.md,
   },
-  subtitle: {
-    fontSize: 14, color: COLORS.textSecondary,
-    textAlign: 'center', marginBottom: SPACING.xl,
+
+  logoWrap: {
+    width: 88, height: 88, borderRadius: RADIUS.full,
+    backgroundColor: COLORS.accentLight,
+    borderWidth: 2, borderColor: COLORS.accentBorder,
+    alignSelf: 'center',
+    alignItems: 'center', justifyContent: 'center',
+    ...SHADOW.cardMd,
   },
+  logoEmoji: { fontSize: 40 },
+  appName:   { fontSize: 32, fontWeight: '800', color: COLORS.text, textAlign: 'center', letterSpacing: -0.5 },
+  tagline:   { fontSize: 14, color: COLORS.textMuted, textAlign: 'center', marginTop: -SPACING.sm },
+
   card: {
     backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.lg,
-    padding: SPACING.lg,
-    borderWidth: 1,
-    borderColor: COLORS.border,
+    borderRadius: RADIUS.xl, borderWidth: 1, borderColor: COLORS.border,
+    padding: SPACING.lg, gap: SPACING.md,
+    ...SHADOW.cardMd,
+    marginTop: SPACING.sm,
   },
-  label: { fontSize: 16, fontWeight: '600', color: COLORS.text, marginBottom: SPACING.sm },
-  hint: { fontSize: 13, color: COLORS.textSecondary, marginBottom: SPACING.md },
+  cardTitle:    { fontSize: 22, fontWeight: '800', color: COLORS.text },
+  cardSubtitle: { fontSize: 14, color: COLORS.textMuted, lineHeight: 20, marginTop: -SPACING.sm },
+  emailHighlight: { fontWeight: '700', color: COLORS.text },
+
+  label: { fontSize: 10, fontWeight: '800', color: COLORS.textMuted, letterSpacing: 1.2 },
   input: {
-    backgroundColor: COLORS.surfaceHigh,
-    borderRadius: RADIUS.md,
-    padding: SPACING.md,
-    color: COLORS.text,
-    fontSize: 16,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    marginBottom: SPACING.md,
+    backgroundColor: COLORS.background,
+    borderRadius: RADIUS.md, borderWidth: 1.5, borderColor: COLORS.border,
+    paddingVertical: SPACING.md, paddingHorizontal: SPACING.md,
+    fontSize: 16, color: COLORS.text,
+    marginTop: -SPACING.sm,
   },
   otpInput: {
-    fontSize: 28, fontWeight: '700',
-    textAlign: 'center', letterSpacing: 8,
+    fontSize: 32, fontWeight: '800', textAlign: 'center',
+    letterSpacing: 12, paddingVertical: SPACING.lg,
   },
-  button: {
+
+  btn: {
     backgroundColor: COLORS.accent,
-    borderRadius: RADIUS.md,
-    padding: SPACING.md,
-    alignItems: 'center',
+    borderRadius: RADIUS.lg, paddingVertical: SPACING.md,
+    alignItems: 'center', ...SHADOW.fab,
   },
-  buttonDisabled: { opacity: 0.4 },
-  buttonText: { color: '#fff', fontSize: 16, fontWeight: '700' },
-  backLink: { marginTop: SPACING.md, alignItems: 'center' },
-  backLinkText: { color: COLORS.textSecondary, fontSize: 14 },
+  btnDisabled: { opacity: 0.4 },
+  btnText:     { color: COLORS.white, fontSize: 16, fontWeight: '700' },
+
+  otpFooter: {
+    flexDirection: 'row', justifyContent: 'space-between',
+    marginTop: -SPACING.sm,
+  },
+  secondaryLink: { fontSize: 13, color: COLORS.accent, fontWeight: '600' },
+
+  footer: {
+    fontSize: 11, color: COLORS.textMuted, textAlign: 'center',
+    lineHeight: 17, paddingHorizontal: SPACING.md,
+  },
 });
