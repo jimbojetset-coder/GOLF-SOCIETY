@@ -5,33 +5,30 @@ import { supabase } from '../api/supabase';
 import { useAuth } from './useAuth';
 
 /**
- * Listens for deep links in the format:
- *   golfscoring://join/<share_token>
+ * Listens for deep links: golfscoring://join/<share_token>
  *
- * If the user is authenticated, immediately calls join_competition()
- * and navigates to the competition leaderboard.
- *
- * If not yet authenticated, the share token is stored and picked up
- * by the auth flow after sign-in.
+ * Authenticated  → calls join_competition() RPC immediately, navigates to leaderboard.
+ * Unauthenticated → stores token in global._pendingShareToken, redirects to sign-in.
+ *                   Root layout picks it up after auth completes.
  */
 export function useJoinCompetition() {
-  const url = useURL();
+  const url    = useURL();
   const { user } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
     if (!url) return;
 
-    // Parse the share token from the deep link
-    const match = url.match(/join\/([a-f0-9]+)/);
+    // Match alphanumeric share tokens (not just hex)
+    const match = url.match(/join\/([A-Za-z0-9_-]+)/);
     if (!match) return;
 
     const shareToken = match[1];
+    if (shareToken === 'link') return; // manual entry screen — handled by router
 
     if (user) {
       handleJoin(shareToken);
     } else {
-      // Store token so auth screen can redirect after sign-in
       global._pendingShareToken = shareToken;
       router.replace('/(auth)/sign-in');
     }
@@ -43,16 +40,16 @@ export function useJoinCompetition() {
     });
 
     if (error || data?.error) {
-      console.warn('Failed to join competition:', error || data?.error);
+      console.warn('Join competition failed:', error?.message ?? data?.error);
+      // Navigate to manual join screen so user can try again
+      router.replace(`/join/link`);
       return;
     }
 
-    // Navigate to leaderboard for this competition
     router.replace(`/(tabs)/leaderboard?competitionId=${data.competition_id}`);
   };
 }
 
-// Extend global for pending token (cleared after use)
 declare global {
   var _pendingShareToken: string | undefined;
 }
