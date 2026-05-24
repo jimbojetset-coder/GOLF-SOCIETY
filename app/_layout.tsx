@@ -7,7 +7,7 @@ import { useJoinCompetition } from '../src/hooks/useJoinCompetition';
 export default function RootLayout() {
   const { session, loading } = useAuth();
   const segments = useSegments();
-  const router = useRouter();
+  const router   = useRouter();
 
   // Handle deep links for share tokens globally
   useJoinCompetition();
@@ -20,7 +20,7 @@ export default function RootLayout() {
     if (!session && !inAuthGroup) {
       router.replace('/(auth)/sign-in');
     } else if (session && inAuthGroup) {
-      // Check for pending share token from before sign-in
+      // Pick up any pending share token stored before sign-in
       const pendingToken = global._pendingShareToken;
       if (pendingToken) {
         global._pendingShareToken = undefined;
@@ -33,7 +33,8 @@ export default function RootLayout() {
 
   return (
     <>
-      <StatusBar style="light" />
+      {/* Light theme — dark icons on white backgrounds */}
+      <StatusBar style="dark" />
       <Stack screenOptions={{ headerShown: false }} />
     </>
   );
