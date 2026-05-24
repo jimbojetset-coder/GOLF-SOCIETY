@@ -10,7 +10,7 @@ import {
   KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS, SPACING, RADIUS } from '../../constants/theme';
+import { COLORS, SPACING, RADIUS, SHADOW } from '../../constants/theme';
 
 interface HoleScore {
   hole: number;
@@ -376,103 +376,172 @@ export default function ScoringGridLayout({
 const CELL_H = 38;
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
-  header: {
+  container:   { flex: 1, backgroundColor: COLORS.background },
+  safeArea:    { flex: 1 },
+
+  // Header
+  headerBar: {
     flexDirection: 'row', alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: SPACING.md,
+    paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm,
+    borderBottomWidth: 1, borderBottomColor: COLORS.border,
+    backgroundColor: COLORS.background, gap: SPACING.sm,
   },
-  teamLabel: { fontSize: 14, fontWeight: '800' },
-  statusPill: {
-    backgroundColor: COLORS.surface,
+  backBtn: {
+    width: 36, height: 36, borderRadius: RADIUS.full,
+    backgroundColor: COLORS.surfaceHigh, borderWidth: 1, borderColor: COLORS.border,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  headerCenter:  { flex: 1, alignItems: 'center' },
+  headerTitle:   { fontSize: 15, fontWeight: '800', color: COLORS.text },
+  headerStatus:  { fontSize: 12, fontWeight: '700', color: COLORS.accent, marginTop: 1 },
+  savingBadge: {
+    backgroundColor: COLORS.accentLight, borderRadius: RADIUS.full,
+    paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1, borderColor: COLORS.accentBorder,
+  },
+  savingText: { fontSize: 10, fontWeight: '700', color: COLORS.accent },
+
+  // Half toggle
+  halfToggle: {
+    flexDirection: 'row', backgroundColor: COLORS.surfaceHigh,
+    borderRadius: RADIUS.full, borderWidth: 1, borderColor: COLORS.border,
+    padding: 3, alignSelf: 'center', margin: SPACING.sm,
+  },
+  halfBtn: {
+    paddingHorizontal: 20, paddingVertical: 7,
     borderRadius: RADIUS.full,
-    paddingHorizontal: 14, paddingVertical: 5,
-    borderWidth: 1, borderColor: COLORS.border,
   },
-  statusText: { fontSize: 13, fontWeight: '700', color: COLORS.text },
-  grid: { paddingHorizontal: SPACING.sm },
-  row: {
-    flexDirection: 'row', alignItems: 'center',
-    height: CELL_H,
+  halfBtnActive: { backgroundColor: COLORS.accent, ...SHADOW.card },
+  halfBtnText:   { fontSize: 13, fontWeight: '700', color: COLORS.textMuted },
+  halfBtnTextActive: { color: COLORS.white },
+
+  // Table
+  tableWrap:   { flex: 1 },
+  tableScroll: { flex: 1 },
+  tableInner:  { minWidth: '100%' },
+
+  // Header row
+  tableHeader: {
+    flexDirection: 'row',
+    backgroundColor: COLORS.surfaceHigh,
+    borderBottomWidth: 1.5, borderBottomColor: COLORS.border,
   },
-  rowAlt: { backgroundColor: COLORS.surfaceHigh + '44' },
-  totalRow: {
-    height: CELL_H + 4,
-    backgroundColor: COLORS.surface,
-    borderTopWidth: 1, borderBottomWidth: 1, borderColor: COLORS.border,
+  th:      { justifyContent: 'center', alignItems: 'center', paddingVertical: SPACING.sm },
+  thText:  { fontSize: 9, fontWeight: '800', color: COLORS.textMuted, letterSpacing: 0.8 },
+  thTeam:  { fontSize: 9, fontWeight: '800', letterSpacing: 0.5 },
+
+  // Data rows
+  tableRow: {
+    flexDirection: 'row',
+    borderBottomWidth: 1, borderBottomColor: COLORS.border,
+    minHeight: 48,
   },
-  grandTotalRow: {
-    height: CELL_H + 8,
-    backgroundColor: COLORS.surface,
-    borderTopWidth: 2, borderBottomWidth: 1, borderColor: COLORS.accent + '55',
-    marginTop: 4,
+  tableRowAlt: { backgroundColor: COLORS.surfaceHigh },
+  tableRowLive:{ backgroundColor: COLORS.accentLight },
+
+  // Cells
+  cell: { justifyContent: 'center', alignItems: 'center', paddingVertical: 4 },
+  cellHole:   { backgroundColor: COLORS.surfaceHigh },
+  cellPar:    {},
+  cellSI:     {},
+  cellScore: {
+    borderLeftWidth: 1, borderLeftColor: COLORS.border,
+    borderRightWidth: 1, borderRightColor: COLORS.border,
   },
-  // Column widths
-  cellHole: { width: 36, alignItems: 'center' },
-  cellPar: { width: 30, alignItems: 'center' },
-  cellSI: { width: 30, alignItems: 'center' },
-  cellScore: { flex: 1, alignItems: 'center' },
-  cellStatus: { width: 36, alignItems: 'center' },
-  // Text styles
-  headerCell: { fontSize: 9, fontWeight: '800', color: COLORS.textMuted, letterSpacing: 0.5 },
-  holeNumText: { fontSize: 13, fontWeight: '700', color: COLORS.text },
-  parText: { fontSize: 13, color: COLORS.textSecondary },
-  siText: { fontSize: 11, color: COLORS.textMuted },
-  totalLabel: { fontSize: 11, fontWeight: '800', color: COLORS.textSecondary },
-  totalValue: { fontSize: 13, fontWeight: '700', color: COLORS.text },
-  grandTotal: { fontSize: 16, fontWeight: '900' },
-  holeResultText: { fontSize: 12, fontWeight: '800' },
-  // Score cell
-  scoreCell: { flex: 1, alignItems: 'center', justifyContent: 'center', height: CELL_H },
-  scoreCellInner: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
-  scoreCellText: { fontSize: 14, fontWeight: '700' },
-  scoreCellEmpty: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
-  scoreCellEmptyText: { fontSize: 14, color: COLORS.border },
-  // Finish
-  finishBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 8, backgroundColor: '#2A7D2E',
-    borderRadius: RADIUS.md, padding: SPACING.md,
-    marginTop: SPACING.lg, marginHorizontal: SPACING.md,
+  cellStatus: { paddingHorizontal: 4 },
+
+  holeNum:   { fontSize: 14, fontWeight: '800', color: COLORS.text },
+  parText:   { fontSize: 12, fontWeight: '600', color: COLORS.textMuted },
+  siText:    { fontSize: 10, color: COLORS.textMuted },
+  statusCellText: { fontSize: 9, fontWeight: '800', letterSpacing: 0.3 },
+
+  // Score cell contents
+  scoreBox: {
+    width: 36, height: 34, borderRadius: RADIUS.sm,
+    alignItems: 'center', justifyContent: 'center',
+    position: 'relative',
   },
-  finishText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  scoreBoxFilled:   { backgroundColor: COLORS.surface, borderWidth: 1.5, borderColor: COLORS.border },
+  scoreBoxEmpty:    { backgroundColor: COLORS.surfaceHigh, borderWidth: 1, borderColor: COLORS.border, opacity: 0.6 },
+  scoreBoxEntered:  { borderColor: COLORS.accent, borderWidth: 1.5, backgroundColor: COLORS.accentLight },
+  scoreNum:         { fontSize: 16, fontWeight: '800', color: COLORS.text },
+  stablefordDot: {
+    position: 'absolute', top: 2, right: 2,
+    width: 14, height: 14, borderRadius: 7,
+    backgroundColor: COLORS.accent, alignItems: 'center', justifyContent: 'center',
+  },
+  stablefordDotText: { fontSize: 7, fontWeight: '800', color: COLORS.white },
+
+  // Hole result icons
+  wonDot:    { width: 8, height: 8, borderRadius: 4, backgroundColor: COLORS.accent },
+  lostDot:   { width: 8, height: 8, borderRadius: 4, backgroundColor: COLORS.border },
+  halvedDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: COLORS.textMuted },
+
+  // Totals row
+  totalsRow: {
+    flexDirection: 'row',
+    backgroundColor: COLORS.surfaceHigh,
+    borderTopWidth: 2, borderTopColor: COLORS.border,
+    minHeight: 44,
+  },
+  totalLabel: { fontSize: 10, fontWeight: '800', color: COLORS.textMuted },
+  totalVal:   { fontSize: 16, fontWeight: '800', color: COLORS.text },
+
   // Edit modal
-  modalOverlay: { flex: 1, justifyContent: 'flex-end' },
-  modalBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.5)' },
-  editSheet: {
+  modalOverlay: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.3)',
+    justifyContent: 'flex-end',
+  },
+  modalCard: {
     backgroundColor: COLORS.surface,
     borderTopLeftRadius: RADIUS.xl, borderTopRightRadius: RADIUS.xl,
     padding: SPACING.lg, gap: SPACING.md,
+    borderTopWidth: 1, borderLeftWidth: 1, borderRightWidth: 1, borderColor: COLORS.border,
+    ...SHADOW.cardMd,
   },
-  editTitle: { fontSize: 18, fontWeight: '800', color: COLORS.text, textAlign: 'center' },
-  editSubtitle: { fontSize: 13, color: COLORS.textSecondary, textAlign: 'center', marginTop: -8 },
-  quickRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  quickBtn: {
-    width: 34, height: 42, borderRadius: RADIUS.md,
+  modalHeader:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  modalTitle:    { fontSize: 18, fontWeight: '800', color: COLORS.text },
+  modalHoleInfo: { fontSize: 13, color: COLORS.textMuted },
+  modalClose: {
+    width: 34, height: 34, borderRadius: RADIUS.full,
+    backgroundColor: COLORS.surfaceHigh, borderWidth: 1, borderColor: COLORS.border,
     alignItems: 'center', justifyContent: 'center',
-    backgroundColor: COLORS.surfaceHigh,
-    borderWidth: 1, borderColor: COLORS.border,
   },
-  quickBtnText: { fontSize: 15, fontWeight: '700', color: COLORS.text },
-  quickBtnTextSelected: { color: '#fff' },
-  editInput: {
-    backgroundColor: COLORS.surfaceHigh,
-    borderRadius: RADIUS.md, padding: SPACING.md,
-    color: COLORS.text, fontSize: 28, fontWeight: '800',
-    textAlign: 'center',
-    borderWidth: 2,
+
+  // Stepper
+  stepperRow:   { flexDirection: 'row', gap: SPACING.sm },
+  stepperBlock: { flex: 1, gap: 6 },
+  stepperLabel: { fontSize: 10, fontWeight: '800', color: COLORS.textMuted, letterSpacing: 0.8 },
+  stepper:      { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
+  stepBtn: {
+    width: 44, height: 44, borderRadius: RADIUS.md,
+    backgroundColor: COLORS.surfaceHigh, borderWidth: 1.5, borderColor: COLORS.border,
+    alignItems: 'center', justifyContent: 'center',
   },
-  editActions: { flexDirection: 'row', gap: SPACING.md },
-  editCancel: {
-    flex: 1, padding: SPACING.md,
-    borderRadius: RADIUS.md, alignItems: 'center',
-    backgroundColor: COLORS.surfaceHigh,
-    borderWidth: 1, borderColor: COLORS.border,
+  stepBtnDec: { borderColor: COLORS.border },
+  stepBtnInc: { backgroundColor: COLORS.accentLight, borderColor: COLORS.accentBorder },
+  stepVal: {
+    flex: 1, textAlign: 'center',
+    fontSize: 28, fontWeight: '800', color: COLORS.text,
   },
-  editCancelText: { fontSize: 15, fontWeight: '600', color: COLORS.textSecondary },
-  editConfirm: {
-    flex: 2, padding: SPACING.md,
-    borderRadius: RADIUS.md, alignItems: 'center',
+  stepValEmpty: { fontSize: 18, color: COLORS.textMuted },
+
+  stablefordRow: {
+    flexDirection: 'row', alignItems: 'center', gap: SPACING.sm,
+    backgroundColor: COLORS.accentLight, borderRadius: RADIUS.md,
+    borderWidth: 1, borderColor: COLORS.accentBorder,
+    padding: SPACING.sm,
   },
-  editConfirmText: { fontSize: 15, fontWeight: '700', color: '#fff' },
+  stablefordLabel: { flex: 1, fontSize: 13, color: COLORS.textMuted },
+  stablefordVal:   { fontSize: 16, fontWeight: '800', color: COLORS.accent },
+
+  modalSaveBtn: {
+    backgroundColor: COLORS.accent, borderRadius: RADIUS.lg,
+    paddingVertical: SPACING.md, alignItems: 'center',
+    ...SHADOW.fab,
+  },
+  modalSaveText: { fontSize: 16, fontWeight: '700', color: COLORS.white },
+
+  // Empty / error
+  empty:      { flex: 1, alignItems: 'center', justifyContent: 'center', padding: SPACING.xl },
+  emptyTitle: { fontSize: 18, fontWeight: '700', color: COLORS.text },
 });
