@@ -635,13 +635,7 @@ values
   ('scorecards',          'scorecards',          true, 15728640, array['image/jpeg','image/png','image/webp','image/heic'])
 on conflict (id) do nothing;
 
--- Storage RLS — allow any authenticated user to upload/read
-insert into storage.policies (name, bucket_id, definition)
-values
-  ('player-photos read',       'player-photos',       '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":"*","Action":"s3:GetObject","Resource":"arn:aws:s3:::player-photos/*"}]}'),
-  ('competition-heroes read',  'competition-heroes',  '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":"*","Action":"s3:GetObject","Resource":"arn:aws:s3:::competition-heroes/*"}]}'),
-  ('scorecards read',          'scorecards',          '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":"*","Action":"s3:GetObject","Resource":"arn:aws:s3:::scorecards/*"}]}')
-on conflict do nothing;
+-- Storage buckets created manually in Supabase Dashboard (Storage tab)
 
 
 -- ============================================================
