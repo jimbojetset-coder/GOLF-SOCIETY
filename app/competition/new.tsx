@@ -85,13 +85,13 @@ export default function NewCompetitionScreen() {
 
   // ── Matches ──────────────────────────────────────────────────
   const [matches, setMatches] = useState<MatchDraft[]>([
-    { id: nanoid(), format: 'fourball', session_date: startDate, session: 'Morning', scorer_player_id: null },
+    { id: nanoid(), format: 'fourball', session_date: startDate, session: 'Morning', scorer_player_id: null, players_a: [], players_b: [] },
   ]);
 
   const addMatch = () => setMatches(prev => [...prev, {
     id: nanoid(), format: 'fourball',
     session_date: startDate, session: 'Afternoon',
-    scorer_player_id: null,
+    scorer_player_id: null, players_a: [], players_b: [],
   }]);
 
   const updateMatch = (id: string, data: MatchDraft) =>
@@ -216,7 +216,43 @@ export default function NewCompetitionScreen() {
 
       if (matchErr) throw matchErr;
 
-      // 5. Navigate to the new competition
+      // 5. Create match_players rows
+      const { data: createdMatches } = await supabase
+        .from('matches')
+        .select('id, match_number')
+        .eq('competition_id', comp.id)
+        .order('match_number');
+
+      const matchPlayerInserts: any[] = [];
+      for (const draft of matches) {
+        const dbMatch = createdMatches?.find(m => m.match_number === matches.indexOf(draft) + 1);
+        if (!dbMatch) continue;
+
+        const allDraftIds = [...draft.players_a, ...draft.players_b];
+        for (const draftId of allDraftIds) {
+          const dbPlayerId = playerIdMap[draftId];
+          if (!dbPlayerId) continue;
+          const draftPlayer = validPlayers.find(p => p.id === draftId);
+          if (!draftPlayer) continue;
+          const ph = draftPlayer.handicap_index
+            ? calcPlayingHandicap(parseFloat(draftPlayer.handicap_index), DEFAULT_SLOPE, DEFAULT_RATING, DEFAULT_PAR)
+            : 0;
+          matchPlayerInserts.push({
+            match_id: dbMatch.id,
+            player_id: dbPlayerId,
+            team: draftPlayer.team,
+            playing_handicap: ph,
+            strokes_received: 0,  // recalculated on scoring screen load
+          });
+        }
+      }
+
+      if (matchPlayerInserts.length > 0) {
+        const { error: mpErr } = await supabase.from('match_players').insert(matchPlayerInserts);
+        if (mpErr) console.warn('match_players insert error:', mpErr.message);
+      }
+
+      // 6. Navigate to the new competition
       router.replace(`/(tabs)/leaderboard?competitionId=${comp.id}`);
 
     } catch (err: any) {
@@ -547,6 +583,10 @@ export default function NewCompetitionScreen() {
                   matchNumber={i + 1}
                   eventDays={eventDays}
                   players={players}
+                  teamAName={teamAName}
+                  teamBName={teamBName}
+                  teamAColour={teamAColour}
+                  teamBColour={teamBColour}
                   onUpdate={data => updateMatch(m.id, data)}
                   onRemove={() => removeMatch(m.id)}
                 />
