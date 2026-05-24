@@ -13,6 +13,7 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../../../src/api/supabase';
+import { Share } from 'react-native';
 import { useAuth } from '../../../src/hooks/useAuth';
 import { COLORS, SPACING, RADIUS, SHADOW, FORMAT_LABELS } from '../../../src/constants/theme';
 import ShareCompetitionButton from '../../../src/components/shared/ShareCompetitionButton';
@@ -55,6 +56,20 @@ export default function CompetitionDetailScreen() {
   }, [id]);
 
   useEffect(() => { load(); }, [load]);
+
+
+  const shareScorerLink = async (match: any) => {
+    if (!match.scorer_share_token) return;
+    const url = `golfscoring://scoring/join/${match.scorer_share_token}`;
+    const format = FORMAT_LABELS[match.format] ?? match.format;
+    const session = match.session ? ` (${match.session})` : '';
+    try {
+      await Share.share({
+        message: `You've been nominated as scorer for Match ${match.match_number} — ${format}${session} in ${competition.name}.\n\nOpen the scoring screen: ${url}`,
+        title: `Score Match ${match.match_number}`,
+      });
+    } catch (_) {}
+  };
 
   const closeCompetition = () => {
     Alert.alert(
@@ -222,6 +237,20 @@ export default function CompetitionDetailScreen() {
                       </Text>
                     </View>
                   </View>
+
+                  {/* Scorer share — creator only, pending or in_progress */}
+                  {isCreator && !isComplete && match.scorer_share_token && (
+                    <TouchableOpacity
+                      style={styles.scorerShareBtn}
+                      onPress={() => shareScorerLink(match)}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons name="share-outline" size={14} color={COLORS.accent} />
+                      <Text style={styles.scorerShareText}>
+                        {match.scorer_user_id ? 'Scorer assigned · Share again' : 'Share scorer link'}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
               );
             })}
