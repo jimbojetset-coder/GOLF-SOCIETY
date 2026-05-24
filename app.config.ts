@@ -7,20 +7,20 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   version: '1.0.0',
   orientation: 'portrait',
   icon: './assets/icon.png',
-  userInterfaceStyle: 'dark',
+  userInterfaceStyle: 'light',
   splash: {
     image: './assets/splash.png',
     resizeMode: 'contain',
-    backgroundColor: '#0F1923',
+    backgroundColor: '#FFFFFF',
   },
   ios: {
-    supportsTablet: false,
+    supportsTablet: true,
     bundleIdentifier: 'com.golfscoring.app',
   },
   android: {
     adaptiveIcon: {
       foregroundImage: './assets/adaptive-icon.png',
-      backgroundColor: '#0F1923',
+      backgroundColor: '#FFFFFF',
     },
     package: 'com.golfscoring.app',
   },
@@ -40,7 +40,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL,
     supabaseAnonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
     eas: {
-      projectId: 'your-eas-project-id',
+      projectId: 'ff4a6dc9-7971-405e-870d-ab8b0d4fb00c',
     },
   },
 });
