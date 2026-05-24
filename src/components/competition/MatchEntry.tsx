@@ -1,5 +1,9 @@
 /**
- * Define a single match: format, day, session, scorer.
+ * Define a single match: format, day, session, players, scorer.
+ *
+ * Player assignment rules:
+ *  - Singles / Foursomes: 1 player per team
+ *  - Fourball / Scramble: up to 2 players per team
  */
 import React, { useState } from 'react';
 import {
@@ -13,39 +17,117 @@ import type { PlayerDraft } from './PlayerEntry';
 export interface MatchDraft {
   id: string;
   format: 'fourball' | 'foursomes' | 'singles' | 'scramble';
-  session_date: string;   // YYYY-MM-DD
+  session_date: string;
   session: 'Morning' | 'Afternoon' | 'Evening';
-  scorer_player_id: string | null;  // draft player id
+  scorer_player_id: string | null;
+  // Player draft IDs per team
+  players_a: string[];   // 1 or 2 draft IDs from team A
+  players_b: string[];   // 1 or 2 draft IDs from team B
 }
 
 const FORMATS: MatchDraft['format'][] = ['fourball', 'foursomes', 'singles', 'scramble'];
 const SESSIONS: MatchDraft['session'][] = ['Morning', 'Afternoon', 'Evening'];
 
+// How many players each team needs per format
+const TEAM_SIZE: Record<MatchDraft['format'], number> = {
+  singles: 1,
+  foursomes: 1,
+  fourball: 2,
+  scramble: 2,
+};
+
 interface Props {
   match: MatchDraft;
   matchNumber: number;
   eventDays: string[];
-  players: PlayerDraft[];   // only has_app players can be scorers
+  players: PlayerDraft[];
+  teamAName: string;
+  teamBName: string;
+  teamAColour: string;
+  teamBColour: string;
   onUpdate: (m: MatchDraft) => void;
   onRemove: () => void;
 }
 
 export default function MatchEntry({
-  match, matchNumber, eventDays, players, onUpdate, onRemove,
+  match, matchNumber, eventDays, players,
+  teamAName, teamBName, teamAColour, teamBColour,
+  onUpdate, onRemove,
 }: Props) {
   const [expanded, setExpanded] = useState(true);
   const update = (fields: Partial<MatchDraft>) => onUpdate({ ...match, ...fields });
-  const appPlayers = players.filter(p => p.has_app && p.name);
+
+  const teamAPlayers = players.filter(p => p.team === 'A' && p.name.trim());
+  const teamBPlayers = players.filter(p => p.team === 'B' && p.name.trim());
+  const appPlayers   = players.filter(p => p.has_app && p.name.trim());
+  const maxPerTeam   = TEAM_SIZE[match.format];
+
+  const togglePlayer = (team: 'A' | 'B', draftId: string) => {
+    const field = team === 'A' ? 'players_a' : 'players_b';
+    const current = match[field];
+    if (current.includes(draftId)) {
+      update({ [field]: current.filter(id => id !== draftId) });
+    } else if (current.length < maxPerTeam) {
+      update({ [field]: [...current, draftId] });
+    } else if (maxPerTeam === 1) {
+      // Singles/Foursomes — swap
+      update({ [field]: [draftId] });
+    }
+  };
+
+  const renderPlayerChips = (teamPlayers: PlayerDraft[], team: 'A' | 'B', colour: string) => {
+    const selected = team === 'A' ? match.players_a : match.players_b;
+    if (teamPlayers.length === 0) {
+      return <Text style={styles.noScorer}>No {team === 'A' ? teamAName : teamBName} players added yet.</Text>;
+    }
+    return (
+      <View style={styles.chipRow}>
+        {teamPlayers.map(p => {
+          const active = selected.includes(p.id);
+          return (
+            <TouchableOpacity
+              key={p.id}
+              style={[styles.chip, active && { backgroundColor: colour, borderColor: colour }]}
+              onPress={() => togglePlayer(team, p.id)}
+            >
+              <Text style={[styles.chipText, active && styles.chipTextActive]}>
+                {p.name}
+              </Text>
+              {active && maxPerTeam > 1 && (
+                <Text style={[styles.chipBadge, { color: colour + 'CC' }]}>
+                  {selected.indexOf(p.id) + 1}
+                </Text>
+              )}
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    );
+  };
+
+  const teamAValid = match.players_a.length === maxPerTeam;
+  const teamBValid = match.players_b.length === maxPerTeam;
 
   return (
     <View style={styles.card}>
       <TouchableOpacity style={styles.header} onPress={() => setExpanded(e => !e)}>
-        <View style={styles.matchNum}>
+        <View style={[styles.matchNum, (!teamAValid || !teamBValid) && styles.matchNumWarning]}>
           <Text style={styles.matchNumText}>{matchNumber}</Text>
         </View>
-        <Text style={styles.matchSummary}>
-          {FORMAT_LABELS[match.format]} · {fmtDay(match.session_date)} {match.session}
-        </Text>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.matchSummary}>
+            {FORMAT_LABELS[match.format]} · {fmtDay(match.session_date)} {match.session}
+          </Text>
+          {(teamAValid && teamBValid) ? (
+            <Text style={styles.matchSubSummary}>
+              {match.players_a.map(id => players.find(p => p.id === id)?.name).join(' & ')}
+              {' vs '}
+              {match.players_b.map(id => players.find(p => p.id === id)?.name).join(' & ')}
+            </Text>
+          ) : (
+            <Text style={styles.matchSubWarning}>Players not yet assigned</Text>
+          )}
+        </View>
         <Ionicons
           name={expanded ? 'chevron-up' : 'chevron-down'}
           size={16} color={COLORS.textMuted}
@@ -62,7 +144,7 @@ export default function MatchEntry({
               <TouchableOpacity
                 key={f}
                 style={[styles.chip, match.format === f && styles.chipActive]}
-                onPress={() => update({ format: f })}
+                onPress={() => update({ format: f, players_a: [], players_b: [] })}
               >
                 <Text style={[styles.chipText, match.format === f && styles.chipTextActive]}>
                   {FORMAT_LABELS[f]}
@@ -102,6 +184,26 @@ export default function MatchEntry({
               </TouchableOpacity>
             ))}
           </View>
+
+          {/* Team A players */}
+          <View style={styles.teamLabelRow}>
+            <View style={[styles.teamDot, { backgroundColor: teamAColour }]} />
+            <Text style={[styles.label, { color: teamAColour, marginTop: 0 }]}>
+              {teamAName} — pick {maxPerTeam}
+            </Text>
+            {teamAValid && <Ionicons name="checkmark-circle" size={16} color={teamAColour} />}
+          </View>
+          {renderPlayerChips(teamAPlayers, 'A', teamAColour)}
+
+          {/* Team B players */}
+          <View style={styles.teamLabelRow}>
+            <View style={[styles.teamDot, { backgroundColor: teamBColour }]} />
+            <Text style={[styles.label, { color: teamBColour, marginTop: 0 }]}>
+              {teamBName} — pick {maxPerTeam}
+            </Text>
+            {teamBValid && <Ionicons name="checkmark-circle" size={16} color={teamBColour} />}
+          </View>
+          {renderPlayerChips(teamBPlayers, 'B', teamBColour)}
 
           {/* Scorer */}
           <Text style={styles.label}>Nominated scorer</Text>
@@ -159,21 +261,31 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.accent,
     justifyContent: 'center', alignItems: 'center',
   },
+  matchNumWarning: { backgroundColor: COLORS.gold },
   matchNumText: { fontSize: 12, fontWeight: '800', color: '#fff' },
-  matchSummary: { flex: 1, fontSize: 13, color: COLORS.text, fontWeight: '600' },
+  matchSummary:    { fontSize: 13, color: COLORS.text, fontWeight: '600' },
+  matchSubSummary: { fontSize: 11, color: COLORS.textMuted, marginTop: 2 },
+  matchSubWarning: { fontSize: 11, color: COLORS.gold, marginTop: 2 },
   body: { padding: SPACING.md, paddingTop: 0, gap: SPACING.sm },
   label: { fontSize: 12, color: COLORS.textSecondary, marginTop: SPACING.sm },
+  teamLabelRow: {
+    flexDirection: 'row', alignItems: 'center',
+    gap: 6, marginTop: SPACING.sm,
+  },
+  teamDot: { width: 8, height: 8, borderRadius: 4 },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
     paddingHorizontal: 12, paddingVertical: 7,
     borderRadius: RADIUS.full,
     backgroundColor: COLORS.surface,
     borderWidth: 1, borderColor: COLORS.border,
   },
-  chipActive: { backgroundColor: COLORS.accent, borderColor: COLORS.accent },
-  chipText: { fontSize: 13, color: COLORS.textSecondary, fontWeight: '600' },
+  chipActive:     { backgroundColor: COLORS.accent, borderColor: COLORS.accent },
+  chipText:       { fontSize: 13, color: COLORS.textSecondary, fontWeight: '600' },
   chipTextActive: { color: '#fff' },
-  noScorer: { fontSize: 12, color: COLORS.textMuted, fontStyle: 'italic' },
+  chipBadge:      { fontSize: 11, fontWeight: '700' },
+  noScorer:       { fontSize: 12, color: COLORS.textMuted, fontStyle: 'italic' },
   removeBtn: {
     flexDirection: 'row', alignItems: 'center',
     gap: 6, marginTop: SPACING.sm,
