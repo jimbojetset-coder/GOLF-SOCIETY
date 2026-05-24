@@ -261,11 +261,7 @@ create policy "Competition creator can update players"
     )
   );
 
--- Ghost player claim: let the authenticated user link themselves to a ghost player
-create policy "User can claim ghost player"
-  on public.players for update
-  using (players.is_ghost = true and players.user_id is null)
-  with check (user_id = auth.uid());
+-- Ghost player claim policy: run separately after table creation (see Part 2)
 
 
 -- ============================================================
