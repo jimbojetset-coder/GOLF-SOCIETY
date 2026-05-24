@@ -16,7 +16,7 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../../../src/api/supabase';
-import { COLORS, SPACING, RADIUS } from '../../../src/constants/theme';
+import { COLORS, SPACING, RADIUS, SHADOW } from '../../../src/constants/theme';
 import { parseStoredResult } from '../../../src/utils/matchStatus';
 
 const FORMAT_LABEL: Record<string, string> = {
@@ -336,130 +336,119 @@ export default function CompetitionHistoryScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
+
   header: {
     flexDirection: 'row', alignItems: 'center',
-    padding: SPACING.md, paddingTop: SPACING.lg, gap: SPACING.sm,
-    borderBottomWidth: 1, borderBottomColor: COLORS.border,
+    paddingHorizontal: SPACING.md, paddingTop: SPACING.lg, paddingBottom: SPACING.md,
+    gap: SPACING.sm, borderBottomWidth: 1, borderBottomColor: COLORS.border,
+    backgroundColor: COLORS.background,
   },
-  backBtn: { padding: 4 },
-  headerTitle: { fontSize: 20, fontWeight: '800', color: COLORS.text },
-  headerDate: { fontSize: 12, color: COLORS.textSecondary, marginTop: 2 },
+  backBtn: {
+    width: 38, height: 38, borderRadius: RADIUS.full,
+    backgroundColor: COLORS.surfaceHigh, borderWidth: 1, borderColor: COLORS.border,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  headerTitle: { fontSize: 20, fontWeight: '800', color: COLORS.text, flex: 1 },
+  headerDate:  { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
+
   scroll: { padding: SPACING.md, gap: SPACING.sm },
 
-  // Final board
+  // Final scoreboard
   finalBoard: {
-    backgroundColor: COLORS.surface, borderRadius: RADIUS.lg,
-    borderWidth: 1, borderColor: COLORS.border,
-    padding: SPACING.md, gap: SPACING.sm, marginBottom: SPACING.sm,
+    backgroundColor: COLORS.surface,
+    borderRadius: RADIUS.xl, borderWidth: 1, borderColor: COLORS.border,
+    padding: SPACING.lg, gap: SPACING.md,
+    ...SHADOW.cardMd,
   },
   winnerBanner: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
+    flexDirection: 'row', alignItems: 'center', gap: SPACING.sm,
     borderRadius: RADIUS.md, borderWidth: 1,
     paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm,
   },
   winnerEmoji: { fontSize: 22 },
-  winnerText: { fontSize: 20, fontWeight: '900' },
+  winnerText:  { fontSize: 18, fontWeight: '800' },
   tiedBanner: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
+    flexDirection: 'row', alignItems: 'center', gap: SPACING.sm,
     borderRadius: RADIUS.md, borderWidth: 1, borderColor: COLORS.border,
     paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm,
     backgroundColor: COLORS.surfaceHigh,
   },
-  tiedText: { fontSize: 18, fontWeight: '700', color: COLORS.text },
-  scoreRow: {
-    flexDirection: 'row', alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  scoreTeam: { flex: 1 },
-  scoreTeamName: { fontSize: 13, fontWeight: '700' },
-  scorePoints: { fontSize: 52, fontWeight: '900', lineHeight: 58 },
-  scorePointsWinner: { textShadowColor: 'rgba(255,255,255,0.1)', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 8 },
-  scoreDivider: { width: 48, alignItems: 'center' },
-  scoreDividerText: { fontSize: 28, color: COLORS.textMuted, fontWeight: '300' },
-  scoreMatches: { fontSize: 10, color: COLORS.textMuted },
+  tiedText: { fontSize: 16, fontWeight: '700', color: COLORS.text },
+
+  scoreRow:         { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  scoreTeam:        { flex: 1 },
+  scoreTeamName:    { fontSize: 12, fontWeight: '800', letterSpacing: 0.5, marginBottom: 2 },
+  scorePoints:      { fontSize: 56, fontWeight: '900', lineHeight: 62 },
+  scorePointsWinner:{},
+  scoreDivider:     { width: 48, alignItems: 'center' },
+  scoreDividerText: { fontSize: 24, color: COLORS.border, fontWeight: '300' },
+  scoreMatches:     { fontSize: 10, color: COLORS.textMuted, marginTop: 4 },
 
   // Section label
   sectionLabel: {
-    fontSize: 11, fontWeight: '800', color: COLORS.textMuted,
+    fontSize: 10, fontWeight: '800', color: COLORS.textMuted,
     letterSpacing: 1.5, marginTop: SPACING.md, marginBottom: 4,
   },
 
   // Match cards
   matchCard: {
-    backgroundColor: COLORS.surface, borderRadius: RADIUS.md,
+    backgroundColor: COLORS.surface, borderRadius: RADIUS.lg,
     borderWidth: 1, borderColor: COLORS.border, padding: SPACING.md,
-    gap: SPACING.sm,
+    gap: SPACING.sm, ...SHADOW.card,
   },
-  matchCardHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  matchFormat: { fontSize: 14, fontWeight: '700', color: COLORS.text },
-  matchSession: { fontSize: 12, color: COLORS.textMuted },
-  matchTeamsRow: { flexDirection: 'row', alignItems: 'center' },
-  matchTeamBlock: { flex: 1, gap: 2 },
-  matchPlayerName: { fontSize: 13, fontWeight: '600' },
-  matchResultCenter: { width: 80, alignItems: 'center', gap: 1 },
-  matchResultTeam: { fontSize: 9, fontWeight: '800', letterSpacing: 0.5 },
-  matchResultLabel: { fontSize: 17, fontWeight: '900' },
-  matchPtsRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  matchPts: { fontSize: 12, fontWeight: '700' },
-  matchPtsDash: { fontSize: 11, color: COLORS.textMuted },
+  matchCardHeader:   { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
+  matchFormat:       { fontSize: 14, fontWeight: '700', color: COLORS.text },
+  matchSession:      { fontSize: 12, color: COLORS.textMuted },
+  matchTeamsRow:     { flexDirection: 'row', alignItems: 'center' },
+  matchTeamBlock:    { flex: 1, gap: 2 },
+  matchPlayerName:   { fontSize: 13, fontWeight: '600' },
+  matchResultCenter: { width: 80, alignItems: 'center', gap: 2 },
+  matchResultTeam:   { fontSize: 9, fontWeight: '800', letterSpacing: 1 },
+  matchResultLabel:  { fontSize: 16, fontWeight: '800' },
+  matchPtsRow:       { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  matchPts:          { fontSize: 18, fontWeight: '800' },
+  matchPtsDash:      { fontSize: 14, color: COLORS.textMuted },
 
   // Player stats
   statsTeamBlock: {
-    backgroundColor: COLORS.surface, borderRadius: RADIUS.md,
+    backgroundColor: COLORS.surface, borderRadius: RADIUS.lg,
     borderWidth: 1, borderColor: COLORS.border,
-    overflow: 'hidden', marginBottom: SPACING.sm,
+    padding: SPACING.md, gap: SPACING.sm, ...SHADOW.card,
   },
-  statsTeamHeader: {
-    fontSize: 12, fontWeight: '800', letterSpacing: 1,
-    paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm,
-    borderBottomWidth: 1, borderBottomColor: COLORS.border,
-  },
-  statRow: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm,
-    borderBottomWidth: 1, borderBottomColor: COLORS.border + '55',
-    gap: SPACING.sm,
-  },
-  statRowLeft: { flex: 1 },
-  statPlayerName: { fontSize: 14, fontWeight: '600', color: COLORS.text },
-  statNote: { fontSize: 10, color: COLORS.warning, marginTop: 2 },
-  statValues: { flexDirection: 'row', gap: 6 },
+  statsTeamHeader: { fontSize: 13, fontWeight: '800', letterSpacing: 0.5, marginBottom: 4 },
+  statRow: { flexDirection: 'row', alignItems: 'flex-start', gap: SPACING.sm, paddingVertical: 6, borderTopWidth: 1, borderTopColor: COLORS.border },
+  statRowLeft:    { flex: 1 },
+  statPlayerName: { fontSize: 14, fontWeight: '700', color: COLORS.text },
+  statNote:       { fontSize: 11, color: COLORS.warning, marginTop: 2 },
+  statValues:     { flexDirection: 'row', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' },
   statBadge: {
-    alignItems: 'center', backgroundColor: COLORS.surfaceHigh,
-    borderRadius: RADIUS.sm, paddingHorizontal: 8, paddingVertical: 4,
-    minWidth: 44,
+    alignItems: 'center',
+    backgroundColor: COLORS.surfaceHigh, borderRadius: RADIUS.sm,
+    paddingHorizontal: 8, paddingVertical: 4,
+    minWidth: 40, borderWidth: 1, borderColor: COLORS.border,
   },
-  statBadgeAccent: { borderWidth: 1, borderColor: COLORS.accent + '44' },
-  statBadgeHcap: {
-    alignItems: 'center', backgroundColor: COLORS.warning + '15',
-    borderRadius: RADIUS.sm, paddingHorizontal: 8, paddingVertical: 4,
-    borderWidth: 1, borderColor: COLORS.warning + '33', minWidth: 52,
-  },
-  statBadgeLabel: { fontSize: 8, color: COLORS.textMuted, fontWeight: '700', letterSpacing: 0.5 },
-  statBadgeValue: { fontSize: 16, fontWeight: '900', color: COLORS.text },
+  statBadgeAccent: { backgroundColor: COLORS.accentLight, borderColor: COLORS.accentBorder },
+  statBadgeHcap:   { alignItems: 'center', backgroundColor: COLORS.goldLight, borderRadius: RADIUS.sm, paddingHorizontal: 8, paddingVertical: 4, minWidth: 48, borderWidth: 1, borderColor: COLORS.goldBorder },
+  statBadgeLabel:  { fontSize: 8, fontWeight: '700', color: COLORS.textMuted, letterSpacing: 0.5 },
+  statBadgeValue:  { fontSize: 16, fontWeight: '800', color: COLORS.text },
 
   // Highlights
   highlightsList: {
-    backgroundColor: COLORS.surface, borderRadius: RADIUS.md,
-    borderWidth: 1, borderColor: COLORS.border, overflow: 'hidden',
+    backgroundColor: COLORS.surface, borderRadius: RADIUS.lg,
+    borderWidth: 1, borderColor: COLORS.border, overflow: 'hidden', ...SHADOW.card,
   },
   highlightRow: {
     flexDirection: 'row', alignItems: 'center', gap: SPACING.sm,
-    paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm,
-    borderBottomWidth: 1, borderBottomColor: COLORS.border + '44',
+    padding: SPACING.md, borderTopWidth: 1, borderTopColor: COLORS.border,
   },
   highlightEmoji: { fontSize: 20 },
-  highlightDesc: { fontSize: 13, color: COLORS.text },
-  highlightName: { fontWeight: '800' },
+  highlightDesc:  { fontSize: 13, color: COLORS.text },
+  highlightName:  { fontWeight: '700' },
 
   // Notes
-  notesText: {
-    fontSize: 14, color: COLORS.textSecondary, lineHeight: 22,
-    backgroundColor: COLORS.surface, borderRadius: RADIUS.md,
-    borderWidth: 1, borderColor: COLORS.border, padding: SPACING.md,
-  },
+  notesText: { fontSize: 14, color: COLORS.textSecondary, lineHeight: 22 },
 
   // Empty
-  empty: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: SPACING.xl },
+  empty:      { flex: 1, alignItems: 'center', justifyContent: 'center', padding: SPACING.xl },
   emptyTitle: { fontSize: 18, fontWeight: '700', color: COLORS.text },
 });
