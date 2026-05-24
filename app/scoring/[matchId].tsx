@@ -75,6 +75,7 @@ export default function ScoringScreen() {
   const [matchStatus, setMatchStatus] = useState('A/S');
   const [saving, setSaving] = useState(false);
   const [scoringLayout, setScoringLayout] = useState<'card' | 'grid'>('card');
+  const [strokesMap, setStrokesMap] = useState<Record<string, number>>({});
 
   // debounce ref — avoid hammering DB on rapid taps
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -197,6 +198,7 @@ export default function ScoringScreen() {
     }
 
     setHoles(builtHoles);
+    setStrokesMap(strokesMap);
     recalcMatchStatus(builtHoles, players, strokesMap, matchData.competitions.team_a_name, matchData.competitions.team_b_name);
     setLoading(false);
 
@@ -286,8 +288,8 @@ export default function ScoringScreen() {
 
     const teamA = dbPlayers.filter(p => p.team === 'A');
     const teamB = dbPlayers.filter(p => p.team === 'B');
-    const strokesA = 0; // TODO: load from strokesMap in state
-    const strokesB = 0;
+    const strokesA = strokesMap[teamA[0]?.id] ?? 0;
+    const strokesB = strokesMap[teamB[0]?.id] ?? 0;
 
     const scorePayload: Partial<DBMatchScore> = {
       match_id: matchId,
