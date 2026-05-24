@@ -74,7 +74,7 @@ export default function ScoringScreen() {
   const [holes, setHoles] = useState<ScoringHole[]>([]);
   const [matchStatus, setMatchStatus] = useState('A/S');
   const [saving, setSaving] = useState(false);
-  const [scoringLayout, setScoringLayout] = useState<'card' | 'grid' | 'compact'>('card');
+  const [scoringLayout, setScoringLayout] = useState<'card' | 'grid'>('card');
 
   // debounce ref — avoid hammering DB on rapid taps
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -94,7 +94,7 @@ export default function ScoringScreen() {
         .select('scoring_layout')
         .eq('user_id', user.id)
         .single();
-      if (prof?.scoring_layout) setScoringLayout(prof.scoring_layout as 'card' | 'grid' | 'compact');
+      if (prof?.scoring_layout) setScoringLayout(prof.scoring_layout as 'card' | 'grid');
     }
 
     // 1. Match + competition
