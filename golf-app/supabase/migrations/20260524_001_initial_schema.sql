@@ -3,6 +3,18 @@
 -- Run in Supabase SQL Editor (Dashboard → SQL → New query)
 -- ============================================================
 
+-- ============================================================
+-- IDEMPOTENT CLEANUP  (safe to re-run)
+-- ============================================================
+drop trigger if exists trg_user_profiles_updated_at on public.user_profiles;
+drop trigger if exists trg_competitions_updated_at on public.competitions;
+drop trigger if exists trg_matches_updated_at on public.matches;
+drop trigger if exists trg_match_scores_updated_at on public.match_scores;
+drop trigger if exists trg_on_auth_user_created on auth.users;
+drop function if exists public.handle_updated_at() cascade;
+drop function if exists public.handle_new_user() cascade;
+drop function if exists public.join_competition(text) cascade;
+
 -- ── Extensions ───────────────────────────────────────────────
 create extension if not exists "pgcrypto";
 
