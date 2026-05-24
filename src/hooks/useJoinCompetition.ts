@@ -20,7 +20,8 @@ export function useJoinCompetition() {
     if (!url) return;
 
     // Match alphanumeric share tokens (not just hex)
-    const match = url.match(/join\/([A-Za-z0-9_-]+)/);
+    if (url.includes('scoring/join')) return;
+    const match = url.match(/(?<![\w])join\/([A-Za-z0-9_-]+)/);
     if (!match) return;
 
     const shareToken = match[1];
