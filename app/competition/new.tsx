@@ -421,7 +421,7 @@ export default function NewCompetitionScreen() {
             />
           )}
 
-          {/* ── STEP: Teams ── */
+          {/* ── STEP: Teams ── */}
           {step === 'teams' && (
             <View style={styles.section}>
               <View style={styles.teamBlock}>
