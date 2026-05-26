@@ -77,8 +77,16 @@ export default function ScoringScreen() {
   const [scoringLayout, setScoringLayout] = useState<'card' | 'grid'>('card');
   const [strokesMap, setStrokesMap] = useState<Record<string, number>>({});
 
-  // debounce ref — avoid hammering DB on rapid taps
-  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Per-hole debounce timers — one timer per hole so entering hole 4 never
+  // cancels a pending save for hole 3
+  const saveTimers = useRef<Record<number, ReturnType<typeof setTimeout>>>({});
+  // Per-hole in-flight flag — prevents two concurrent DB writes for the same hole
+  const saveInFlight = useRef<Record<number, boolean>>({});
+  // Per-hole pending flag — set when a new score arrives while a save is in-flight;
+  // the in-flight save will re-run once it completes, picking up the latest holesRef value
+  const savePending = useRef<Record<number, boolean>>({});
+  // Always-current holes ref — avoids stale closure in debounced persistScore
+  const holesRef = useRef<ScoringHole[]>([]);
 
   // ── Load everything ────────────────────────────────────────
   useEffect(() => {
@@ -198,6 +206,7 @@ export default function ScoringScreen() {
     }
 
     setHoles(builtHoles);
+    holesRef.current = builtHoles;
     setStrokesMap(strokesMap);
     recalcMatchStatus(builtHoles, players, strokesMap, matchData.competitions.team_a_name, matchData.competitions.team_b_name);
     setLoading(false);
@@ -207,6 +216,17 @@ export default function ScoringScreen() {
       await supabase.from('matches').update({ status: 'in_progress' }).eq('id', matchId);
     }
   };
+
+  // Keep holesRef in sync AND recalculate match status whenever holes change.
+  // Doing both here keeps recalcMatchStatus out of the setHoles updater —
+  // calling a setState inside another setState's updater is a side-effect and
+  // fires twice in React StrictMode, causing matchStatus to flicker.
+  useEffect(() => {
+    holesRef.current = holes;
+    if (holes.length && dbPlayers.length && competition) {
+      recalcMatchStatus(holes, dbPlayers, strokesMap, competition.team_a_name, competition.team_b_name);
+    }
+  }, [holes]); // dbPlayers/strokesMap/competition are stable after loadMatch — intentional omission
 
   // ── Recalculate match status after every score change ──────
   const recalcMatchStatus = (
@@ -255,98 +275,118 @@ export default function ScoringScreen() {
     field: keyof ScoringHole,
     value: number | null,
   ) => {
-    setHoles(prev => {
-      const updated = prev.map(h =>
-        h.hole === holeNumber ? { ...h, [field]: value } : h
-      );
-      // Recalc status immediately in UI
-      if (dbPlayers.length && competition) {
-        const strokesMap: Record<string, number> = {};
-        dbPlayers.forEach(p => {
-          // Re-use strokes from existing computation — approximation for UI
-          strokesMap[p.id] = 0;
-        });
-        recalcMatchStatus(updated, dbPlayers, strokesMap, competition.team_a_name, competition.team_b_name);
-      }
-      return updated;
-    });
+    // Pure state update — no side-effects inside the updater.
+    // Match status recalc is handled by the useEffect that watches holes.
+    setHoles(prev =>
+      prev.map(h => h.hole === holeNumber ? { ...h, [field]: value } : h)
+    );
 
-    // Debounced DB save
-    if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => persistScore(holeNumber, field, value), 800);
-  }, [dbPlayers, competition, matchId]);
+    // Per-hole debounced DB save — clearing hole 3's timer never cancels hole 4's.
+    // No field/value passed: persistScore reads everything from holesRef at fire time.
+    if (saveTimers.current[holeNumber]) clearTimeout(saveTimers.current[holeNumber]);
+    saveTimers.current[holeNumber] = setTimeout(() => persistScore(holeNumber), 800);
+  }, [dbPlayers, competition, matchId, strokesMap, persistScore]);
 
-  // ── Persist a single score change ─────────────────────────
-  const persistScore = async (
-    holeNumber: number,
-    field: keyof ScoringHole,
-    value: number | null,
-  ) => {
-    setSaving(true);
-    const holeData = holes.find(h => h.hole === holeNumber);
-    if (!holeData) { setSaving(false); return; }
-
-    const teamA = dbPlayers.filter(p => p.team === 'A');
-    const teamB = dbPlayers.filter(p => p.team === 'B');
-    const strokesA = strokesMap[teamA[0]?.id] ?? 0;
-    const strokesB = strokesMap[teamB[0]?.id] ?? 0;
-
-    const scorePayload: Partial<DBMatchScore> = {
-      match_id: matchId,
-      hole_number: holeNumber,
-      par: holeData.par,
-      stroke_index: holeData.strokeIndex,
-      score_a: field === 'scoreA' ? value : (holeData.scoreA ?? null),
-      score_b: field === 'scoreB' ? value : (holeData.scoreB ?? null),
-      score_a_player2: field === 'scoreA2' ? value : (holeData.scoreA2 ?? null),
-      score_b_player2: field === 'scoreB2' ? value : (holeData.scoreB2 ?? null),
-    };
-
-    // Compute net scores and hole result if both sides have scores
-    const effA = scorePayload.score_a;
-    const effB = scorePayload.score_b;
-    if (effA !== null && effB !== null) {
-      const nA = netScore(effA, strokesA, holeData.strokeIndex);
-      const nB = netScore(effB, strokesB, holeData.strokeIndex);
-      scorePayload.net_score_a = nA;
-      scorePayload.net_score_b = nB;
-      scorePayload.hole_result = holeResult(nA, nB);
+  // ── Persist a single hole's scores ────────────────────────
+  //
+  // Takes only holeNumber — all score values are read from holesRef.current at
+  // the moment the write fires, guaranteeing we always save the freshest data.
+  //
+  // Race-condition guard:
+  //   If a write is already in-flight for this hole when the debounce fires,
+  //   we set savePending[hole] = true and return immediately.  When the
+  //   in-flight request settles we check savePending and, if set, do one
+  //   final write with the latest holesRef snapshot.  This means at most one
+  //   DB write is ever in-flight per hole, and the last value always wins.
+  const persistScore = useCallback(async (holeNumber: number): Promise<void> => {
+    // Guard: if already saving this hole, flag it and bail — we'll re-run below
+    if (saveInFlight.current[holeNumber]) {
+      savePending.current[holeNumber] = true;
+      return;
     }
 
-    // Upsert by match_id + hole_number
-    await supabase
-      .from('match_scores')
-      .upsert(scorePayload, { onConflict: 'match_id,hole_number' });
+    const holeData = holesRef.current.find(h => h.hole === holeNumber);
+    if (!holeData) return;
 
-    // Highlight detection
-    if (value !== null) {
-      const playerForField = field === 'scoreA' ? teamA[0]
-        : field === 'scoreA2' ? teamA[1]
-        : field === 'scoreB' ? teamB[0]
-        : teamB[1];
+    saveInFlight.current[holeNumber] = true;
+    setSaving(true);
 
-      if (playerForField) {
-        const highlight = detectHighlight(value, holeData.par);
-        if (highlight && highlight !== 'par') {
-          const team = playerForField.team;
-          await supabase.from('highlight_events').upsert({
-            competition_id: competition?.id,
-            match_id: matchId,
-            player_id: playerForField.id,
-            hole_number: holeNumber,
-            event_type: highlight,
-            team,
-            timestamp: new Date().toISOString(),
-          }, { onConflict: 'match_id,player_id,hole_number' });
+    try {
+      const teamA = dbPlayers.filter(p => p.team === 'A');
+      const teamB = dbPlayers.filter(p => p.team === 'B');
+      const strokesA = strokesMap[teamA[0]?.id] ?? 0;
+      const strokesB = strokesMap[teamB[0]?.id] ?? 0;
+
+      // Always read ALL score fields from the ref — no stale field/value params
+      const scorePayload: Partial<DBMatchScore> = {
+        match_id: matchId,
+        hole_number: holeNumber,
+        par: holeData.par,
+        stroke_index: holeData.strokeIndex,
+        score_a: holeData.scoreA ?? null,
+        score_b: holeData.scoreB ?? null,
+        score_a_player2: holeData.scoreA2 ?? null,
+        score_b_player2: holeData.scoreB2 ?? null,
+      };
+
+      // Compute net scores and hole result if both sides have scores
+      const effA = scorePayload.score_a;
+      const effB = scorePayload.score_b;
+      if (effA !== null && effB !== null) {
+        const nA = netScore(effA, strokesA, holeData.strokeIndex);
+        const nB = netScore(effB, strokesB, holeData.strokeIndex);
+        scorePayload.net_score_a = nA;
+        scorePayload.net_score_b = nB;
+        scorePayload.hole_result = holeResult(nA, nB);
+      }
+
+      await supabase
+        .from('match_scores')
+        .upsert(scorePayload, { onConflict: 'match_id,hole_number' });
+
+      // Highlight detection — check every player's score on this hole
+      const candidates: Array<{ score: number | null; player: DBPlayer | undefined }> = [
+        { score: holeData.scoreA,  player: teamA[0] },
+        { score: holeData.scoreA2, player: teamA[1] },
+        { score: holeData.scoreB,  player: teamB[0] },
+        { score: holeData.scoreB2, player: teamB[1] },
+      ];
+      for (const { score, player } of candidates) {
+        if (score !== null && player) {
+          const highlight = detectHighlight(score, holeData.par);
+          if (highlight && highlight !== 'par') {
+            await supabase.from('highlight_events').upsert({
+              competition_id: competition?.id,
+              match_id: matchId,
+              player_id: player.id,
+              hole_number: holeNumber,
+              event_type: highlight,
+              team: player.team,
+              timestamp: new Date().toISOString(),
+            }, { onConflict: 'match_id,player_id,hole_number' });
+          }
         }
       }
-    }
+    } finally {
+      saveInFlight.current[holeNumber] = false;
 
-    setSaving(false);
-  };
+      if (savePending.current[holeNumber]) {
+        // A new score arrived while we were saving — do one final write now
+        // to ensure the very latest value is persisted
+        savePending.current[holeNumber] = false;
+        void persistScore(holeNumber);
+      } else {
+        setSaving(false);
+      }
+    }
+  }, [dbPlayers, strokesMap, matchId, competition]);
 
   // ── Complete match ─────────────────────────────────────────
-  const handleComplete = async () => {
+  // Wrapped in useCallback so the layout component receives a stable function
+  // reference — without this every score entry causes an unnecessary re-render
+  // of the entire layout. Uses holesRef so it always reads the latest scores
+  // without needing `holes` in the dependency array.
+  const handleComplete = useCallback(async () => {
     Alert.alert(
       'Finish round?',
       'This will submit all scores and mark the match as complete.',
@@ -355,22 +395,31 @@ export default function ScoringScreen() {
         {
           text: 'Submit', style: 'default',
           onPress: async () => {
+            const currentHoles = holesRef.current;
             const teamA = dbPlayers.filter(p => p.team === 'A');
             const teamB = dbPlayers.filter(p => p.team === 'B');
 
-            // Compute final result
+            // Compute final result using actual strokes received
+            const finalStrokesA = strokesMap[teamA[0]?.id] ?? 0;
+            const finalStrokesB = strokesMap[teamB[0]?.id] ?? 0;
+
             let holesUp = 0;
             let leader: 'A' | 'B' | null = null;
             let lastHolePlayed = 0;
 
-            for (const h of holes) {
+            for (const h of currentHoles) {
               if (h.scoreA === null || h.scoreB === null) break;
               lastHolePlayed = h.hole;
-              const nA = netScore(h.scoreA, 0, h.strokeIndex);
-              const nB = netScore(h.scoreB, 0, h.strokeIndex);
+              const nA = netScore(h.scoreA, finalStrokesA, h.strokeIndex);
+              const nB = netScore(h.scoreB, finalStrokesB, h.strokeIndex);
               const res = holeResult(nA, nB);
-              if (res === 'A') { leader = 'A'; holesUp = leader === 'B' ? holesUp - 1 : holesUp + 1; if (holesUp === 0) leader = null; }
-              else if (res === 'B') { leader = 'B'; holesUp = leader === 'A' ? holesUp - 1 : holesUp + 1; if (holesUp === 0) leader = null; }
+              if (res === 'A') {
+                if (leader === 'B') { holesUp--; if (holesUp === 0) leader = null; }
+                else { leader = 'A'; holesUp++; }
+              } else if (res === 'B') {
+                if (leader === 'A') { holesUp--; if (holesUp === 0) leader = null; }
+                else { leader = 'B'; holesUp++; }
+              }
             }
 
             const final = finalResult(
@@ -416,7 +465,7 @@ export default function ScoringScreen() {
         },
       ]
     );
-  };
+  }, [dbPlayers, strokesMap, competition, matchId, router]);
 
   // ── Build scoring players from DB ─────────────────────────
   const scoringPlayers: ScoringPlayer[] = dbPlayers.map(p => {
