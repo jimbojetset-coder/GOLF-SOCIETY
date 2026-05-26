@@ -157,4 +157,238 @@ export default function ScoringScreen() {
     } else if (format === 'scramble') {
       const [a1, a2, b1, b2] = [
         teamA[0]?.playing_handicap ?? 0, teamA[1]?.playing_handicap ?? 0,
-        teamB[0]?.playing_handicap ?? 0, teamB[1]?.playing_hand
+        teamB[0]?.playing_handicap ?? 0, teamB[1]?.playing_handicap ?? 0,
+      ];
+      const strokes = calcStrokesReceived('scramble', [a1, a2, b1, b2]);
+      teamA.forEach(p => { sMap[p.id] = strokes[0]; });
+      teamB.forEach(p => { sMap[p.id] = strokes[1]; });
+    }
+
+    const builtHoles: ScoringHole[] = (courseHoles ?? []).map((ch: any) => {
+      const existing = scoreMap[ch.hole_number];
+      return {
+        hole: ch.hole_number,
+        par: ch.par,
+        strokeIndex: ch.stroke_index,
+        yards: ch.yards,
+        scoreA: existing?.score_a ?? null,
+        scoreA2: existing?.score_a_player2 ?? null,
+        scoreB: existing?.score_b ?? null,
+        scoreB2: existing?.score_b_player2 ?? null,
+      };
+    });
+
+    setHoles(builtHoles);
+    setStrokesMap(sMap);
+    recalcMatchStatus(builtHoles, players, sMap, matchData.competitions.team_a_name, matchData.competitions.team_b_name);
+    setLoading(false);
+
+    if (matchData.status === 'pending') {
+      await supabase.from('matches').update({ status: 'in_progress' }).eq('id', matchId);
+    }
+  };
+
+  const recalcMatchStatus = (
+    currentHoles: ScoringHole[],
+    players: DBPlayer[],
+    sMap: Record<string, number>,
+    teamAName: string,
+    teamBName: string,
+  ) => {
+    const tA = players.filter(p => p.team === 'A');
+    const tB = players.filter(p => p.team === 'B');
+    const strokesA = sMap[tA[0]?.id] ?? 0;
+    const strokesB = sMap[tB[0]?.id] ?? 0;
+
+    let holesUp = 0;
+    let leader: 'A' | 'B' | null = null;
+    let holesPlayed = 0;
+
+    for (const h of currentHoles) {
+      if (h.scoreA === null || h.scoreB === null) break;
+      holesPlayed++;
+      const nA = netScore(h.scoreA, strokesA, h.strokeIndex);
+      const nB = netScore(h.scoreB, strokesB, h.strokeIndex);
+      const res = holeResult(nA, nB);
+
+      if (res === 'A') {
+        if (leader === 'B') { holesUp--; if (holesUp === 0) leader = null; }
+        else { leader = 'A'; holesUp++; }
+      } else if (res === 'B') {
+        if (leader === 'A') { holesUp--; if (holesUp === 0) leader = null; }
+        else { leader = 'B'; holesUp++; }
+      }
+    }
+
+    const remaining = currentHoles.length - holesPlayed;
+    setMatchStatus(matchStatusString(holesUp, leader, remaining, teamAName, teamBName));
+  };
+
+  const handleScoreChange = useCallback((
+    holeNumber: number,
+    field: keyof ScoringHole,
+    value: number | null,
+  ) => {
+    setHoles(prev => {
+      const updated = prev.map(h =>
+        h.hole === holeNumber ? { ...h, [field]: value } : h
+      );
+      if (dbPlayers.length && competition) {
+        // Correctly use existing strokesMap to prevent UI flicker
+        recalcMatchStatus(updated, dbPlayers, strokesMap, competition.team_a_name, competition.team_b_name);
+      }
+      return updated;
+    });
+
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => persistScore(holeNumber, field, value), 800);
+  }, [dbPlayers, competition, matchId, strokesMap]);
+
+  const persistScore = async (
+    holeNumber: number,
+    field: keyof ScoringHole,
+    value: number | null,
+  ) => {
+    setSaving(true);
+    const holeData = holes.find(h => h.hole === holeNumber);
+    if (!holeData) { setSaving(false); return; }
+
+    const tA = dbPlayers.filter(p => p.team === 'A');
+    const tB = dbPlayers.filter(p => p.team === 'B');
+    const strokesA = strokesMap[tA[0]?.id] ?? 0;
+    const strokesB = strokesMap[tB[0]?.id] ?? 0;
+
+    const scorePayload: Partial<DBMatchScore> = {
+      match_id: matchId,
+      hole_number: holeNumber,
+      par: holeData.par,
+      stroke_index: holeData.strokeIndex,
+      score_a: field === 'scoreA' ? value : (holeData.scoreA ?? null),
+      score_b: field === 'scoreB' ? value : (holeData.scoreB ?? null),
+      score_a_player2: field === 'scoreA2' ? value : (holeData.scoreA2 ?? null),
+      score_b_player2: field === 'scoreB2' ? value : (holeData.scoreB2 ?? null),
+    };
+
+    if (scorePayload.score_a !== null && scorePayload.score_b !== null) {
+      const nA = netScore(scorePayload.score_a, strokesA, holeData.strokeIndex);
+      const nB = netScore(scorePayload.score_b, strokesB, holeData.strokeIndex);
+      scorePayload.net_score_a = nA;
+      scorePayload.net_score_b = nB;
+      scorePayload.hole_result = holeResult(nA, nB);
+    }
+
+    await supabase.from('match_scores').upsert(scorePayload, { onConflict: 'match_id,hole_number' });
+
+    if (value !== null) {
+      const player = field === 'scoreA' ? tA[0] : field === 'scoreA2' ? tA[1] : field === 'scoreB' ? tB[0] : tB[1];
+      if (player) {
+        const highlight = detectHighlight(value, holeData.par);
+        if (highlight && highlight !== 'par') {
+          await supabase.from('highlight_events').upsert({
+            competition_id: competition?.id,
+            match_id: matchId,
+            player_id: player.id,
+            hole_number: holeNumber,
+            event_type: highlight,
+            team: player.team,
+            timestamp: new Date().toISOString(),
+          }, { onConflict: 'match_id,player_id,hole_number' });
+        }
+      }
+    }
+    setSaving(false);
+  };
+
+  const handleComplete = async () => {
+    Alert.alert(
+      'Finish round?',
+      'This will submit all scores and mark the match as complete.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Submit', style: 'default',
+          onPress: async () => {
+            const tA = dbPlayers.filter(p => p.team === 'A');
+            const tB = dbPlayers.filter(p => p.team === 'B');
+            const strokesA = strokesMap[tA[0]?.id] ?? 0;
+            const strokesB = strokesMap[tB[0]?.id] ?? 0;
+
+            let holesUp = 0;
+            let leader: 'A' | 'B' | null = null;
+            let lastHolePlayed = 0;
+
+            for (const h of holes) {
+              if (h.scoreA === null || h.scoreB === null) break;
+              lastHolePlayed = h.hole;
+              const nA = netScore(h.scoreA, strokesA, h.strokeIndex);
+              const nB = netScore(h.scoreB, strokesB, h.strokeIndex);
+              const res = holeResult(nA, nB);
+              
+              if (res === 'A') {
+                if (leader === 'B') { holesUp--; if (holesUp === 0) leader = null; }
+                else { leader = 'A'; holesUp++; }
+              } else if (res === 'B') {
+                if (leader === 'A') { holesUp--; if (holesUp === 0) leader = null; }
+                else { leader = 'B'; holesUp++; }
+              }
+            }
+
+            const final = finalResult(holesUp, leader, lastHolePlayed, competition?.team_a_name, competition?.team_b_name);
+
+            await supabase.from('matches').update({
+              status: 'complete',
+              result: final.result,
+              winning_team: final.winning_team,
+              points_a: final.points_a,
+              points_b: final.points_b,
+              holes_played: lastHolePlayed,
+            }).eq('id', matchId);
+
+            await supabase.rpc('increment_competition_points', {
+              comp_id: competition?.id,
+              delta_a: final.points_a,
+              delta_b: final.points_b,
+            });
+
+            router.replace(`/(tabs)/leaderboard?competitionId=${competition?.id}`);
+          },
+        },
+      ]
+    );
+  };
+
+  const scoringPlayers: ScoringPlayer[] = dbPlayers.map(p => ({
+    id: p.id,
+    name: p.name,
+    initials: nameToInitials(p.name),
+    team: p.team,
+    teamColour: p.team === 'A' ? competition?.team_a_colour ?? '#E63946' : competition?.team_b_colour ?? '#457B9D',
+    strokesReceived: strokesMap[p.id] ?? 0,
+    handicapIndex: p.handicap_index,
+    photoUrl: p.photo_url,
+  }));
+
+  if (loading) return <View style={styles.loadingContainer}><ActivityIndicator size="large" color={COLORS.accent} /></View>;
+
+  const LayoutComponent = (scoringLayout === 'grid' ? ScoringGridLayout : ScoringCardLayout) as typeof ScoringCardLayout;
+  return (
+    <LayoutComponent
+      holes={holes}
+      players={scoringPlayers}
+      teamAName={competition?.team_a_name ?? 'A'}
+      teamBName={competition?.team_b_name ?? 'B'}
+      teamAColour={competition?.team_a_colour ?? '#E63946'}
+      teamBColour={competition?.team_b_colour ?? '#457B9D'}
+      matchStatus={matchStatus}
+      format={match.format}
+      heroImageUri={competition?.hero_image_url ?? DEFAULT_HERO}
+      sessionLabel={match.session ? `${match.session}` : 'Round 1'}
+      onScoreChange={handleScoreChange}
+      onComplete={handleComplete}
+    />
+  );
+}
+
+const styles = StyleSheet.create({
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.background },
+});
