@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, ScrollView,
+  View, Text, TextInput, TouchableOpacity, ScrollView, Switch,
   StyleSheet, SafeAreaView, Alert, ActivityIndicator,
   KeyboardAvoidingView, Platform,
 } from 'react-native';
@@ -18,6 +18,7 @@ import HeroImagePicker from '../../src/components/competition/HeroImagePicker';
 import { DEFAULT_HERO } from '../../src/constants/heroImages';
 import { todayISO, addDays, dateRange, fmtDay, fmtFull } from '../../src/utils/dateHelpers';
 import { calcPlayingHandicap } from '../../src/utils/scoring';
+import ScorecardScanScreen from '../../src/screens/ScorecardScanScreen';
 
 // ── Steps ─────────────────────────────────────────────────────
 type Step = 'details' | 'course' | 'teams' | 'dates' | 'players' | 'matches' | 'review';
@@ -402,7 +403,7 @@ export default function NewCompetitionScreen() {
                 </TouchableOpacity>
               )}
 
-              <TouchableOpacity style={styles.skipBtn} onPress={handleNext}>
+              <TouchableOpacity style={styles.skipBtn} onPress={next}>
                 <Text style={styles.skipBtnText}>{courseId ? 'Continue →' : 'Skip for now →'}</Text>
               </TouchableOpacity>
             </View>
