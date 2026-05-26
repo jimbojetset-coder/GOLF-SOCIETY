@@ -127,7 +127,7 @@ function MatchRow({ match, comp, hidden }: { match: Match; comp: Competition; hi
           ) : (
             <Text style={[styles.matchStatusText, { color: accentCol }]}>
               {isLive && match.holes_played > 0 ? `Thru ${match.holes_played}  ·  ` : ''}
-              {statusInfo ?? (match.status === 'pending' ? 'Not started' : '')}
+              {statusInfo.label || (match.status === 'pending' ? 'Not started' : '')}
             </Text>
           )}
         </View>
