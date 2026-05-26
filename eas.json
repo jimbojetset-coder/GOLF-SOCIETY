@@ -1,19 +1,33 @@
 {
   "cli": {
-    "version": ">= 5.0.0"
+    "version": ">= 10.0.0",
+    "appVersionSource": "local"
   },
   "build": {
     "development": {
       "developmentClient": true,
-      "distribution": "internal"
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      }
     },
     "preview": {
+      "distribution": "internal",
       "android": {
         "buildType": "apk"
       },
-      "distribution": "internal"
+      "env": {
+        "EXPO_PUBLIC_SUPABASE_URL": "https://ffkrwdvevjuloyxnliga.supabase.co"
+      }
     },
-    "production": {}
+    "production": {
+      "android": {
+        "buildType": "app-bundle"
+      },
+      "env": {
+        "EXPO_PUBLIC_SUPABASE_URL": "https://ffkrwdvevjuloyxnliga.supabase.co"
+      }
+    }
   },
   "submit": {
     "production": {}
