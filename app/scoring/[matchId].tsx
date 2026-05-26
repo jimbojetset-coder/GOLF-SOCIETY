@@ -7,12 +7,12 @@
  */
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
-  View, ActivityIndicator, Alert, Text, StyleSheet,
+  View, ActivityIndicator, Alert, Text, StyleSheet, TouchableOpacity,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { supabase } from '../../src/api/supabase';
 import { useAuth } from '../../src/hooks/useAuth';
-import { COLORS, teamTints } from '../../src/constants/theme';
+import { COLORS, SPACING, RADIUS, SHADOW, teamTints } from '../../src/constants/theme';
 import ScoringCardLayout, {
   type ScoringHole,
   type ScoringPlayer,
@@ -87,6 +87,11 @@ export default function ScoringScreen() {
   const savePending = useRef<Record<number, boolean>>({});
   // Always-current holes ref — avoids stale closure in debounced persistScore
   const holesRef = useRef<ScoringHole[]>([]);
+
+  // ── Save error tracking ────────────────────────────────────
+  // Tracks which hole numbers had a failed save — drives the error banner
+  const saveErrorHoles = useRef<Set<number>>(new Set());
+  const [hasSaveError, setHasSaveError] = useState(false);
 
   // ── Load everything ────────────────────────────────────────
   useEffect(() => {
@@ -340,9 +345,19 @@ export default function ScoringScreen() {
         scorePayload.hole_result = holeResult(nA, nB);
       }
 
-      await supabase
+      const { error: upsertErr } = await supabase
         .from('match_scores')
         .upsert(scorePayload, { onConflict: 'match_id,hole_number' });
+
+      if (upsertErr) {
+        saveErrorHoles.current.add(holeNumber);
+        setHasSaveError(true);
+        return; // skip highlight detection if score didn't save
+      }
+
+      // Score saved cleanly — remove this hole from the error set
+      saveErrorHoles.current.delete(holeNumber);
+      if (saveErrorHoles.current.size === 0) setHasSaveError(false);
 
       // Highlight detection — check every player's score on this hole
       const candidates: Array<{ score: number | null; player: DBPlayer | undefined }> = [
@@ -380,6 +395,15 @@ export default function ScoringScreen() {
       }
     }
   }, [dbPlayers, strokesMap, matchId, competition]);
+
+  // ── Retry failed saves ────────────────────────────────────
+  const handleRetry = useCallback(() => {
+    const failedHoles = Array.from(saveErrorHoles.current);
+    // Clear optimistically — individual holes will re-add if they fail again
+    saveErrorHoles.current = new Set();
+    setHasSaveError(false);
+    failedHoles.forEach(h => void persistScore(h));
+  }, [persistScore]);
 
   // ── Complete match ─────────────────────────────────────────
   // Wrapped in useCallback so the layout component receives a stable function
@@ -504,7 +528,8 @@ export default function ScoringScreen() {
 
   const LayoutComponent = (scoringLayout === 'grid' ? ScoringGridLayout : ScoringCardLayout) as typeof ScoringCardLayout;
   return (
-    <LayoutComponent
+    <View style={{ flex: 1 }}>
+      <LayoutComponent
       holes={holes}
       players={scoringPlayers}
       teamAName={competition?.team_a_name ?? 'A'}
@@ -518,6 +543,16 @@ export default function ScoringScreen() {
       onScoreChange={handleScoreChange}
       onComplete={handleComplete}
     />
+    {hasSaveError && (
+      <TouchableOpacity
+        style={styles.errorBanner}
+        onPress={handleRetry}
+        activeOpacity={0.85}
+      >
+        <Text style={styles.errorBannerText}>⚠️  Score not saved — tap to retry</Text>
+      </TouchableOpacity>
+    )}
+    </View>
   );
 }
 
@@ -530,4 +565,21 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.background, gap: 12,
   },
   loadingText: { color: COLORS.textSecondary, fontSize: 15 },
+
+  errorBanner: {
+    position: 'absolute',
+    bottom: 90,
+    alignSelf: 'center',
+    backgroundColor: COLORS.danger,
+    paddingVertical: SPACING.sm,
+    paddingHorizontal: SPACING.lg,
+    borderRadius: RADIUS.full,
+    ...SHADOW.cardMd,
+  },
+  errorBannerText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: 0.2,
+  },
 });
