@@ -45,6 +45,8 @@ export const COLORS = {
   dangerLight:   '#FEF2F2',
   dangerBorder:  '#FCA5A5',
 
+  accentDim:     '#BBF7D0',  // pale green — ghost/dim accent
+
   // ── Misc
   white:   '#FFFFFF',
   black:   '#000000',
