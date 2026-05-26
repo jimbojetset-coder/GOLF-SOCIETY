@@ -419,16 +419,22 @@ export default function ScoringScreen() {
   };
 
   // ── Build scoring players from DB ─────────────────────────
-  const scoringPlayers: ScoringPlayer[] = dbPlayers.map(p => ({
-  id: p.id,
-  name: p.name,
-  initials: nameToInitials(p.name),
-  team: p.team,
-  teamColour: p.team === 'A' ? competition?.team_a_colour ?? '#E63946' : competition?.team_b_colour ?? '#457B9D',
-  strokesReceived: 0,
-  handicapIndex: p.handicap_index,
-  photoUrl: p.photo_url,
-}));
+  const scoringPlayers: ScoringPlayer[] = dbPlayers.map(p => {
+  const teamColour = p.team === 'A' ? competition?.team_a_colour ?? '#E63946' : competition?.team_b_colour ?? '#457B9D';
+  const tints = teamTints(teamColour);
+  return {
+    id: p.id,
+    name: p.name,
+    initials: nameToInitials(p.name),
+    team: p.team,
+    teamColour,
+    teamColourLight: tints.light,
+    teamColourBorder: tints.border,
+    strokesReceived: 0,
+    handicapIndex: p.handicap_index,
+    photoUrl: p.photo_url,
+  };
+});
   // ── Render ────────────────────────────────────────────────
   if (loading) {
     return (
