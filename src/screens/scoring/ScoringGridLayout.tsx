@@ -25,9 +25,15 @@ interface HoleScore {
 }
 
 interface Player {
+  id: string;
   name: string;
   team: 'A' | 'B';
+  teamColour: string;
+  teamColourLight: string;
+  teamColourBorder: string;
   strokesReceived: number;
+  handicapIndex?: number;
+  photoUrl?: string;
 }
 
 interface Props {
@@ -37,7 +43,7 @@ interface Props {
   teamBName: string;
   teamAColour: string;
   teamBColour: string;
-  matchStatus: string;
+  matchStatus: string | { label: string; leader: 'A' | 'B' | null };
   format: string;
   onScoreChange: (hole: number, field: keyof HoleScore, value: number | null) => void;
   onComplete: () => void;
