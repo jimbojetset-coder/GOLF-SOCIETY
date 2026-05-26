@@ -21,7 +21,7 @@ type Status = 'idle' | 'joining' | 'success' | 'error';
 
 export default function JoinScreen() {
   const { token } = useLocalSearchParams<{ token: string }>();
-  const { user }  = useRouter() as any;
+
   const router    = useRouter();
   const { user: authUser } = useAuth();
 
