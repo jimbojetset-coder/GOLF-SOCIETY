@@ -208,7 +208,7 @@ export default function CompetitionDetailScreen() {
                       )}
                       {isComplete && (
                         <Text style={[styles.resultText, { color: accentCol }]}>
-                          {statusInfo ?? 'Complete'}
+                          {statusInfo?.label ?? 'Complete'}
                         </Text>
                       )}
                       {match.status === 'pending' && (
