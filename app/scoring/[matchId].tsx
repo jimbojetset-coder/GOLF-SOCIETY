@@ -77,8 +77,10 @@ export default function ScoringScreen() {
   const [scoringLayout, setScoringLayout] = useState<'card' | 'grid'>('card');
   const [strokesMap, setStrokesMap] = useState<Record<string, number>>({});
 
+  // debounce ref — avoid hammering DB on rapid taps
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // ── Load everything ────────────────────────────────────────
   useEffect(() => {
     if (matchId) loadMatch();
   }, [matchId]);
@@ -86,6 +88,7 @@ export default function ScoringScreen() {
   const loadMatch = async () => {
     setLoading(true);
 
+    // 0. Load user's preferred layout
     if (user) {
       const { data: prof } = await supabase
         .from('user_profiles')
@@ -95,6 +98,7 @@ export default function ScoringScreen() {
       if (prof?.scoring_layout) setScoringLayout(prof.scoring_layout as 'card' | 'grid');
     }
 
+    // 1. Match + competition
     const { data: matchData } = await supabase
       .from('matches')
       .select('*, competitions(*)')
@@ -105,6 +109,7 @@ export default function ScoringScreen() {
     setMatch(matchData);
     setCompetition(matchData.competitions);
 
+    // 2. Players in this match (via match_players join)
     const { data: matchPlayerRows } = await supabase
       .from('match_players')
       .select('*, players(*)')
@@ -120,12 +125,14 @@ export default function ScoringScreen() {
     }));
     setDbPlayers(players);
 
+    // 3. Course holes
     const { data: courseHoles } = await supabase
       .from('course_holes')
       .select('*')
       .eq('tee_id', matchData.competitions.tee_id)
       .order('hole_number');
 
+    // 4. Existing scores (if resuming)
     const { data: existingScores } = await supabase
       .from('match_scores')
       .select('*')
@@ -135,35 +142,33 @@ export default function ScoringScreen() {
     const scoreMap: Record<number, DBMatchScore> = {};
     (existingScores ?? []).forEach((s: DBMatchScore) => { scoreMap[s.hole_number] = s; });
 
-    // ── CALCULATE STROKES WITH DYNAMIC ALLOWANCE ──
+    // 5. Calculate strokes received per player
     const teamA = players.filter(p => p.team === 'A');
     const teamB = players.filter(p => p.team === 'B');
     const format = matchData.format as 'fourball' | 'foursomes' | 'singles' | 'scramble';
-    
-    // Get allowance from competition (default to 0.90 if not set)
-    const allowance = matchData.competitions.handicap_allowance ?? 0.90;
 
-    let sMap: Record<string, number> = {};
+    let strokesMap: Record<string, number> = {};
     if (format === 'singles' || format === 'fourball') {
       const allPH = players.map(p => p.playing_handicap);
-      const strokes = calcStrokesReceived(format, allPH, allowance);
-      players.forEach((p, i) => { sMap[p.id] = strokes[i] ?? 0; });
+      const strokes = calcStrokesReceived(format, allPH);
+      players.forEach((p, i) => { strokesMap[p.id] = strokes[i] ?? 0; });
     } else if (format === 'foursomes') {
       const phA = teamA.reduce((s, p) => s + p.playing_handicap, 0) / Math.max(teamA.length, 1);
       const phB = teamB.reduce((s, p) => s + p.playing_handicap, 0) / Math.max(teamB.length, 1);
-      const strokes = calcStrokesReceived('foursomes', [phA, phB], allowance);
-      teamA.forEach(p => { sMap[p.id] = strokes[0]; });
-      teamB.forEach(p => { sMap[p.id] = strokes[1]; });
+      const strokes = calcStrokesReceived('foursomes', [phA, phB]);
+      teamA.forEach(p => { strokesMap[p.id] = strokes[0]; });
+      teamB.forEach(p => { strokesMap[p.id] = strokes[1]; });
     } else if (format === 'scramble') {
       const [a1, a2, b1, b2] = [
         teamA[0]?.playing_handicap ?? 0, teamA[1]?.playing_handicap ?? 0,
         teamB[0]?.playing_handicap ?? 0, teamB[1]?.playing_handicap ?? 0,
       ];
       const strokes = calcStrokesReceived('scramble', [a1, a2, b1, b2]);
-      teamA.forEach(p => { sMap[p.id] = strokes[0]; });
-      teamB.forEach(p => { sMap[p.id] = strokes[1]; });
+      teamA.forEach(p => { strokesMap[p.id] = strokes[0]; });
+      teamB.forEach(p => { strokesMap[p.id] = strokes[1]; });
     }
 
+    // 6. Build holes array
     const builtHoles: ScoringHole[] = (courseHoles ?? []).map((ch: any) => {
       const existing = scoreMap[ch.hole_number];
       return {
@@ -178,52 +183,73 @@ export default function ScoringScreen() {
       };
     });
 
+    // If no course holes (shouldn't happen but safety net)
+    if (builtHoles.length === 0) {
+      for (let i = 1; i <= 18; i++) {
+        const existing = scoreMap[i];
+        builtHoles.push({
+          hole: i, par: 4, strokeIndex: i, yards: undefined,
+          scoreA: existing?.score_a ?? null,
+          scoreA2: existing?.score_a_player2 ?? null,
+          scoreB: existing?.score_b ?? null,
+          scoreB2: existing?.score_b_player2 ?? null,
+        });
+      }
+    }
+
     setHoles(builtHoles);
-    setStrokesMap(sMap);
-    recalcMatchStatus(builtHoles, players, sMap, matchData.competitions.team_a_name, matchData.competitions.team_b_name);
+    setStrokesMap(strokesMap);
+    recalcMatchStatus(builtHoles, players, strokesMap, matchData.competitions.team_a_name, matchData.competitions.team_b_name);
     setLoading(false);
 
+    // Mark match as in_progress if pending
     if (matchData.status === 'pending') {
       await supabase.from('matches').update({ status: 'in_progress' }).eq('id', matchId);
     }
   };
 
+  // ── Recalculate match status after every score change ──────
   const recalcMatchStatus = (
     currentHoles: ScoringHole[],
     players: DBPlayer[],
-    sMap: Record<string, number>,
+    strokesMap: Record<string, number>,
     teamAName: string,
     teamBName: string,
   ) => {
-    const tA = players.filter(p => p.team === 'A');
-    const tB = players.filter(p => p.team === 'B');
-    const strokesA = sMap[tA[0]?.id] ?? 0;
-    const strokesB = sMap[tB[0]?.id] ?? 0;
+    const teamA = players.filter(p => p.team === 'A');
+    const teamB = players.filter(p => p.team === 'B');
+    const strokesA = strokesMap[teamA[0]?.id] ?? 0;
+    const strokesB = strokesMap[teamB[0]?.id] ?? 0;
 
     let holesUp = 0;
     let leader: 'A' | 'B' | null = null;
     let holesPlayed = 0;
 
     for (const h of currentHoles) {
-      if (h.scoreA === null || h.scoreB === null) break;
-      holesPlayed++;
-      const nA = netScore(h.scoreA, strokesA, h.strokeIndex);
-      const nB = netScore(h.scoreB, strokesB, h.strokeIndex);
-      const res = holeResult(nA, nB);
+      const sA = h.scoreA;
+      const sB = h.scoreB;
+      if (sA === null || sB === null) break;
 
-      if (res === 'A') {
+      holesPlayed++;
+      const nA = netScore(sA, strokesA, h.strokeIndex);
+      const nB = netScore(sB, strokesB, h.strokeIndex);
+      const result = holeResult(nA, nB);
+
+      if (result === 'A') {
         if (leader === 'B') { holesUp--; if (holesUp === 0) leader = null; }
         else { leader = 'A'; holesUp++; }
-      } else if (res === 'B') {
+      } else if (result === 'B') {
         if (leader === 'A') { holesUp--; if (holesUp === 0) leader = null; }
         else { leader = 'B'; holesUp++; }
       }
     }
 
-    const remaining = currentHoles.length - holesPlayed;
-    setMatchStatus(matchStatusString(holesUp, leader, remaining, teamAName, teamBName));
+    const holesRemaining = currentHoles.length - holesPlayed;
+    const status = matchStatusString(holesUp, leader, holesRemaining, teamAName, teamBName);
+    setMatchStatus(status);
   };
 
+  // ── Score change handler ───────────────────────────────────
   const handleScoreChange = useCallback((
     holeNumber: number,
     field: keyof ScoringHole,
@@ -233,17 +259,24 @@ export default function ScoringScreen() {
       const updated = prev.map(h =>
         h.hole === holeNumber ? { ...h, [field]: value } : h
       );
+      // Recalc status immediately in UI
       if (dbPlayers.length && competition) {
-        // Correctly use existing strokesMap to prevent UI flicker
+        const strokesMap: Record<string, number> = {};
+        dbPlayers.forEach(p => {
+          // Re-use strokes from existing computation — approximation for UI
+          strokesMap[p.id] = 0;
+        });
         recalcMatchStatus(updated, dbPlayers, strokesMap, competition.team_a_name, competition.team_b_name);
       }
       return updated;
     });
 
+    // Debounced DB save
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => persistScore(holeNumber, field, value), 800);
-  }, [dbPlayers, competition, matchId, strokesMap]);
+  }, [dbPlayers, competition, matchId]);
 
+  // ── Persist a single score change ─────────────────────────
   const persistScore = async (
     holeNumber: number,
     field: keyof ScoringHole,
@@ -253,10 +286,10 @@ export default function ScoringScreen() {
     const holeData = holes.find(h => h.hole === holeNumber);
     if (!holeData) { setSaving(false); return; }
 
-    const tA = dbPlayers.filter(p => p.team === 'A');
-    const tB = dbPlayers.filter(p => p.team === 'B');
-    const strokesA = strokesMap[tA[0]?.id] ?? 0;
-    const strokesB = strokesMap[tB[0]?.id] ?? 0;
+    const teamA = dbPlayers.filter(p => p.team === 'A');
+    const teamB = dbPlayers.filter(p => p.team === 'B');
+    const strokesA = strokesMap[teamA[0]?.id] ?? 0;
+    const strokesB = strokesMap[teamB[0]?.id] ?? 0;
 
     const scorePayload: Partial<DBMatchScore> = {
       match_id: matchId,
@@ -269,36 +302,50 @@ export default function ScoringScreen() {
       score_b_player2: field === 'scoreB2' ? value : (holeData.scoreB2 ?? null),
     };
 
-    if (scorePayload.score_a !== null && scorePayload.score_b !== null) {
-      const nA = netScore(scorePayload.score_a, strokesA, holeData.strokeIndex);
-      const nB = netScore(scorePayload.score_b, strokesB, holeData.strokeIndex);
+    // Compute net scores and hole result if both sides have scores
+    const effA = scorePayload.score_a;
+    const effB = scorePayload.score_b;
+    if (effA !== null && effB !== null) {
+      const nA = netScore(effA, strokesA, holeData.strokeIndex);
+      const nB = netScore(effB, strokesB, holeData.strokeIndex);
       scorePayload.net_score_a = nA;
       scorePayload.net_score_b = nB;
       scorePayload.hole_result = holeResult(nA, nB);
     }
 
-    await supabase.from('match_scores').upsert(scorePayload, { onConflict: 'match_id,hole_number' });
+    // Upsert by match_id + hole_number
+    await supabase
+      .from('match_scores')
+      .upsert(scorePayload, { onConflict: 'match_id,hole_number' });
 
+    // Highlight detection
     if (value !== null) {
-      const player = field === 'scoreA' ? tA[0] : field === 'scoreA2' ? tA[1] : field === 'scoreB' ? tB[0] : tB[1];
-      if (player) {
+      const playerForField = field === 'scoreA' ? teamA[0]
+        : field === 'scoreA2' ? teamA[1]
+        : field === 'scoreB' ? teamB[0]
+        : teamB[1];
+
+      if (playerForField) {
         const highlight = detectHighlight(value, holeData.par);
         if (highlight && highlight !== 'par') {
+          const team = playerForField.team;
           await supabase.from('highlight_events').upsert({
             competition_id: competition?.id,
             match_id: matchId,
-            player_id: player.id,
+            player_id: playerForField.id,
             hole_number: holeNumber,
             event_type: highlight,
-            team: player.team,
+            team,
             timestamp: new Date().toISOString(),
           }, { onConflict: 'match_id,player_id,hole_number' });
         }
       }
     }
+
     setSaving(false);
   };
 
+  // ── Complete match ─────────────────────────────────────────
   const handleComplete = async () => {
     Alert.alert(
       'Finish round?',
@@ -308,11 +355,10 @@ export default function ScoringScreen() {
         {
           text: 'Submit', style: 'default',
           onPress: async () => {
-            const tA = dbPlayers.filter(p => p.team === 'A');
-            const tB = dbPlayers.filter(p => p.team === 'B');
-            const strokesA = strokesMap[tA[0]?.id] ?? 0;
-            const strokesB = strokesMap[tB[0]?.id] ?? 0;
+            const teamA = dbPlayers.filter(p => p.team === 'A');
+            const teamB = dbPlayers.filter(p => p.team === 'B');
 
+            // Compute final result
             let holesUp = 0;
             let leader: 'A' | 'B' | null = null;
             let lastHolePlayed = 0;
@@ -320,20 +366,17 @@ export default function ScoringScreen() {
             for (const h of holes) {
               if (h.scoreA === null || h.scoreB === null) break;
               lastHolePlayed = h.hole;
-              const nA = netScore(h.scoreA, strokesA, h.strokeIndex);
-              const nB = netScore(h.scoreB, strokesB, h.strokeIndex);
+              const nA = netScore(h.scoreA, 0, h.strokeIndex);
+              const nB = netScore(h.scoreB, 0, h.strokeIndex);
               const res = holeResult(nA, nB);
-              
-              if (res === 'A') {
-                if (leader === 'B') { holesUp--; if (holesUp === 0) leader = null; }
-                else { leader = 'A'; holesUp++; }
-              } else if (res === 'B') {
-                if (leader === 'A') { holesUp--; if (holesUp === 0) leader = null; }
-                else { leader = 'B'; holesUp++; }
-              }
+              if (res === 'A') { leader = 'A'; holesUp = leader === 'B' ? holesUp - 1 : holesUp + 1; if (holesUp === 0) leader = null; }
+              else if (res === 'B') { leader = 'B'; holesUp = leader === 'A' ? holesUp - 1 : holesUp + 1; if (holesUp === 0) leader = null; }
             }
 
-            const final = finalResult(holesUp, leader, lastHolePlayed, competition?.team_a_name, competition?.team_b_name);
+            const final = finalResult(
+              holesUp, leader, lastHolePlayed,
+              competition?.team_a_name, competition?.team_b_name,
+            );
 
             await supabase.from('matches').update({
               status: 'complete',
@@ -344,11 +387,29 @@ export default function ScoringScreen() {
               holes_played: lastHolePlayed,
             }).eq('id', matchId);
 
-            await supabase.rpc('increment_competition_points', {
-              comp_id: competition?.id,
-              delta_a: final.points_a,
-              delta_b: final.points_b,
-            });
+            // Update competition totals (direct increment via RPC-safe update)
+            if (competition?.id) {
+              await supabase.rpc('increment_competition_points', {
+                comp_id: competition.id,
+                delta_a: final.points_a,
+                delta_b: final.points_b,
+              }).then(async ({ error: rpcErr }) => {
+                if (rpcErr) {
+                  // Fallback: manual read-then-write if RPC not available
+                  const { data: comp } = await supabase
+                    .from('competitions')
+                    .select('team_a_points, team_b_points')
+                    .eq('id', competition.id)
+                    .single();
+                  if (comp) {
+                    await supabase.from('competitions').update({
+                      team_a_points: (comp.team_a_points ?? 0) + final.points_a,
+                      team_b_points: (comp.team_b_points ?? 0) + final.points_b,
+                    }).eq('id', competition.id);
+                  }
+                }
+              });
+            }
 
             router.replace(`/(tabs)/leaderboard?competitionId=${competition?.id}`);
           },
@@ -357,18 +418,35 @@ export default function ScoringScreen() {
     );
   };
 
+  // ── Build scoring players from DB ─────────────────────────
   const scoringPlayers: ScoringPlayer[] = dbPlayers.map(p => ({
     id: p.id,
     name: p.name,
     initials: nameToInitials(p.name),
     team: p.team,
     teamColour: p.team === 'A' ? competition?.team_a_colour ?? '#E63946' : competition?.team_b_colour ?? '#457B9D',
-    strokesReceived: strokesMap[p.id] ?? 0,
+    strokesReceived: 0, // populated after load — see loadMatch
     handicapIndex: p.handicap_index,
     photoUrl: p.photo_url,
   }));
 
-  if (loading) return <View style={styles.loadingContainer}><ActivityIndicator size="large" color={COLORS.accent} /></View>;
+  // ── Render ────────────────────────────────────────────────
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={COLORS.accent} />
+        <Text style={styles.loadingText}>Loading match…</Text>
+      </View>
+    );
+  }
+
+  if (!match || holes.length === 0) {
+    return (
+      <View style={styles.loadingContainer}>
+        <Text style={styles.loadingText}>Match not found</Text>
+      </View>
+    );
+  }
 
   const LayoutComponent = (scoringLayout === 'grid' ? ScoringGridLayout : ScoringCardLayout) as typeof ScoringCardLayout;
   return (
@@ -389,6 +467,13 @@ export default function ScoringScreen() {
   );
 }
 
+// ── Types re-exported for ScoringCardLayout ────────────────
+export type { ScoringPlayer };
+
 const styles = StyleSheet.create({
-  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.background },
+  loadingContainer: {
+    flex: 1, justifyContent: 'center', alignItems: 'center',
+    backgroundColor: COLORS.background, gap: 12,
+  },
+  loadingText: { color: COLORS.textSecondary, fontSize: 15 },
 });
