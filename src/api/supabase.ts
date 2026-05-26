@@ -152,10 +152,10 @@ export type Tables = {
 /** Returns all dates between start and end inclusive, as YYYY-MM-DD strings */
 export function getEventDays(startDate: string, endDate: string): string[] {
   const days: string[] = [];
-  const current = new Date(startDate);
-  const end = new Date(endDate);
+  const current = parseLocalDate(startDate);
+  const end = parseLocalDate(endDate);
   while (current <= end) {
-    days.push(current.toISOString().split('T')[0]);
+    days.push(localDateStr(current));
     current.setDate(current.getDate() + 1);
   }
   return days;
@@ -163,9 +163,25 @@ export function getEventDays(startDate: string, endDate: string): string[] {
 
 /** Format a YYYY-MM-DD date as "Fri 22 May" */
 export function formatMatchDay(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString('en-GB', {
+  return parseLocalDate(dateStr).toLocaleDateString('en-GB', {
     weekday: 'short', day: 'numeric', month: 'short',
   });
+}
+
+// ── Date helpers (local-time safe) ────────────────────────────
+
+/** Parse YYYY-MM-DD as local midnight (avoids UTC shift on non-UTC devices) */
+function parseLocalDate(dateStr: string): Date {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+
+/** Serialise a Date to YYYY-MM-DD using local time components */
+function localDateStr(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
 
 /** Group matches by session_date then session */
