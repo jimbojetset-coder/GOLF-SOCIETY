@@ -12,7 +12,7 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { supabase } from '../../src/api/supabase';
 import { useAuth } from '../../src/hooks/useAuth';
-import { COLORS } from '../../src/constants/theme';
+import { COLORS, teamTints } from '../../src/constants/theme';
 import ScoringCardLayout, {
   type ScoringHole,
   type ScoringPlayer,
@@ -420,16 +420,15 @@ export default function ScoringScreen() {
 
   // ── Build scoring players from DB ─────────────────────────
   const scoringPlayers: ScoringPlayer[] = dbPlayers.map(p => ({
-    id: p.id,
-    name: p.name,
-    initials: nameToInitials(p.name),
-    team: p.team,
-    teamColour: p.team === 'A' ? competition?.team_a_colour ?? '#E63946' : competition?.team_b_colour ?? '#457B9D',
-    strokesReceived: 0, // populated after load — see loadMatch
-    handicapIndex: p.handicap_index,
-    photoUrl: p.photo_url,
-  }));
-
+  id: p.id,
+  name: p.name,
+  initials: nameToInitials(p.name),
+  team: p.team,
+  teamColour: p.team === 'A' ? competition?.team_a_colour ?? '#E63946' : competition?.team_b_colour ?? '#457B9D',
+  strokesReceived: 0,
+  handicapIndex: p.handicap_index,
+  photoUrl: p.photo_url,
+}));
   // ── Render ────────────────────────────────────────────────
   if (loading) {
     return (
