@@ -22,7 +22,6 @@ import {
   extraStrokesOnHole,
   netScore,
   holeResult,
-  matchStatusString,
   finalResult,
   stablefordPoints,
   detectHighlight,
@@ -72,7 +71,7 @@ export default function ScoringScreen() {
   const [competition, setCompetition] = useState<any>(null);
   const [dbPlayers, setDbPlayers] = useState<DBPlayer[]>([]);
   const [holes, setHoles] = useState<ScoringHole[]>([]);
-  const [matchStatus, setMatchStatus] = useState('A/S');
+  const [matchStatus, setMatchStatus] = useState<{ label: string; leader: 'A' | 'B' | null }>({ label: 'A/S', leader: null });
   const [saving, setSaving] = useState(false);
   const [scoringLayout, setScoringLayout] = useState<'card' | 'grid'>('card');
   const [strokesMap, setStrokesMap] = useState<Record<string, number>>({});
@@ -270,8 +269,15 @@ export default function ScoringScreen() {
     }
 
     const holesRemaining = currentHoles.length - holesPlayed;
-    const status = matchStatusString(holesUp, leader, holesRemaining, teamAName, teamBName);
-    setMatchStatus(status);
+    if (!leader || holesUp === 0) {
+      setMatchStatus({ label: 'A/S', leader: null });
+    } else if (holesUp > holesRemaining) {
+      setMatchStatus({ label: `${holesUp}&${holesRemaining}`, leader });
+    } else if (holesUp === holesRemaining) {
+      setMatchStatus({ label: `Dormie ${holesUp}`, leader });
+    } else {
+      setMatchStatus({ label: `${holesUp}UP`, leader });
+    }
   };
 
   // ── Score change handler ───────────────────────────────────
@@ -290,7 +296,7 @@ export default function ScoringScreen() {
     // No field/value passed: persistScore reads everything from holesRef at fire time.
     if (saveTimers.current[holeNumber]) clearTimeout(saveTimers.current[holeNumber]);
     saveTimers.current[holeNumber] = setTimeout(() => persistScore(holeNumber), 800);
-  }, [dbPlayers, competition, matchId, strokesMap, persistScore]);
+  }, [dbPlayers, competition, matchId, strokesMap]);
 
   // ── Persist a single hole's scores ────────────────────────
   //
@@ -503,7 +509,7 @@ export default function ScoringScreen() {
     teamColour,
     teamColourLight: tints.light,
     teamColourBorder: tints.border,
-    strokesReceived: 0,
+    strokesReceived: strokesMap[p.id] ?? 0,
     handicapIndex: p.handicap_index,
     photoUrl: p.photo_url,
   };
@@ -538,7 +544,6 @@ export default function ScoringScreen() {
       teamBColour={competition?.team_b_colour ?? '#457B9D'}
       matchStatus={matchStatus}
       format={match.format}
-      heroImageUri={competition?.hero_image_url ?? DEFAULT_HERO}
       sessionLabel={match.session ? `${match.session}` : 'Round 1'}
       onScoreChange={handleScoreChange}
       onComplete={handleComplete}
