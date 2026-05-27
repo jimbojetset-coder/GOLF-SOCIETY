@@ -183,12 +183,14 @@ export default function ScoringScreen() {
     let strokesMap: Record<string, number> = {};
     if (format === 'singles' || format === 'fourball') {
       const allPH = players.map(p => p.playing_handicap);
-      const strokes = calcStrokesReceived(format, allPH);
+      const allowance = matchData.competitions.handicap_allowance ?? 1.0;
+      const strokes = calcStrokesReceived(format, allPH, allowance);
       players.forEach((p, i) => { strokesMap[p.id] = strokes[i] ?? 0; });
     } else if (format === 'foursomes') {
       const phA = teamA.reduce((s, p) => s + p.playing_handicap, 0) / Math.max(teamA.length, 1);
       const phB = teamB.reduce((s, p) => s + p.playing_handicap, 0) / Math.max(teamB.length, 1);
-      const strokes = calcStrokesReceived('foursomes', [phA, phB]);
+      const allowance = matchData.competitions.handicap_allowance ?? 1.0;
+      const strokes = calcStrokesReceived('foursomes', [phA, phB], allowance);
       teamA.forEach(p => { strokesMap[p.id] = strokes[0]; });
       teamB.forEach(p => { strokesMap[p.id] = strokes[1]; });
     } else if (format === 'scramble') {
@@ -196,7 +198,8 @@ export default function ScoringScreen() {
         teamA[0]?.playing_handicap ?? 0, teamA[1]?.playing_handicap ?? 0,
         teamB[0]?.playing_handicap ?? 0, teamB[1]?.playing_handicap ?? 0,
       ];
-      const strokes = calcStrokesReceived('scramble', [a1, a2, b1, b2]);
+      const allowance = matchData.competitions.handicap_allowance ?? 1.0;
+      const strokes = calcStrokesReceived('scramble', [a1, a2, b1, b2], allowance);
       teamA.forEach(p => { strokesMap[p.id] = strokes[0]; });
       teamB.forEach(p => { strokesMap[p.id] = strokes[1]; });
     }
