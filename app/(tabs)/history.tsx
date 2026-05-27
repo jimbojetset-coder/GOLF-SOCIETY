@@ -8,7 +8,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { supabase } from '../../src/api/supabase';
+import { supabase, parseLocalDate } from '../../src/api/supabase';
 import { useAuth } from '../../src/hooks/useAuth';
 import { COLORS, SPACING, RADIUS, SHADOW } from '../../src/constants/theme';
 
@@ -37,7 +37,7 @@ export default function HistoryTab() {
     const winner = aWon ? item.team_a_name : bWon ? item.team_b_name : null;
     const winCol = aWon ? item.team_a_colour : item.team_b_colour;
     const dateStr = (item.start_date ?? item.event_date)
-      ? new Date(item.start_date ?? item.event_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+      ? parseLocalDate(item.start_date ?? item.event_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
       : null;
 
     return (
