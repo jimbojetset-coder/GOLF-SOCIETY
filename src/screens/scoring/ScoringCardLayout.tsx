@@ -80,11 +80,12 @@ interface PlayerRowProps {
   par: number;
   strokeIndex: number;
   runningGross: number;
+  teamName: string;
   onDecrease: () => void;
   onIncrease: () => void;
 }
 
-function PlayerRow({ player, grossScore, par, strokeIndex, runningGross, onDecrease, onIncrease }: PlayerRowProps) {
+function PlayerRow({ player, grossScore, par, strokeIndex, runningGross, teamName, onDecrease, onIncrease }: PlayerRowProps) {
   const strokes = extraStrokesOnHole(player.strokesReceived, strokeIndex);
   const pts     = grossScore !== null ? stablefordPoints(grossScore, par, player.strokesReceived, strokeIndex) : null;
   const rel     = grossScore !== null ? relParLabel(grossScore, par) : null;
@@ -101,7 +102,7 @@ function PlayerRow({ player, grossScore, par, strokeIndex, runningGross, onDecre
             <Text style={[styles.avatarText, { color: player.teamColour }]}>{getInitials(player.name)}</Text>
           </View>
           <View style={styles.playerInfo}>
-            <Text style={[styles.playerTeamLabel, { color: player.teamColour }]}>{player.teamColour === COLORS.teamA ? 'EUROPE' : 'USA'}</Text>
+            <Text style={[styles.playerTeamLabel, { color: player.teamColour }]}>{teamName.toUpperCase()}</Text>
             <Text style={styles.playerName}>{player.name}</Text>
             <Text style={styles.playerMeta}>
               {strokes > 0 ? `+${strokes} shot${strokes > 1 ? 's' : ''} this hole` : 'Scratch on this hole'}
@@ -152,16 +153,16 @@ export default function ScoringCardLayout({
   const matchPlayers = useMemo(() => {
     const A = players.filter(p => p.team === 'A');
     const B = players.filter(p => p.team === 'B');
-    const out: { player: ScoringPlayer; scoreField: keyof ScoringHole }[] = [];
+    const out: { player: ScoringPlayer; scoreField: keyof ScoringHole; teamName: string }[] = [];
     if (format === 'fourball' || format === 'singles') {
       const max = Math.max(A.length, B.length);
       for (let i = 0; i < max; i++) {
-        if (A[i]) out.push({ player: A[i], scoreField: i === 0 ? 'scoreA' : 'scoreA2' });
-        if (B[i]) out.push({ player: B[i], scoreField: i === 0 ? 'scoreB' : 'scoreB2' });
+        if (A[i]) out.push({ player: A[i], scoreField: i === 0 ? 'scoreA' : 'scoreA2', teamName: teamAName });
+        if (B[i]) out.push({ player: B[i], scoreField: i === 0 ? 'scoreB' : 'scoreB2', teamName: teamBName });
       }
     } else {
-      if (A[0]) out.push({ player: A[0], scoreField: 'scoreA' });
-      if (B[0]) out.push({ player: B[0], scoreField: 'scoreB' });
+      if (A[0]) out.push({ player: A[0], scoreField: 'scoreA', teamName: teamAName });
+      if (B[0]) out.push({ player: B[0], scoreField: 'scoreB', teamName: teamBName });
     }
     return out;
   }, [players, format]);
@@ -236,6 +237,7 @@ export default function ScoringCardLayout({
               par={hole.par}
               strokeIndex={hole.strokeIndex}
               runningGross={runningGross[player.id] ?? 0}
+              teamName={teamName}
               onDecrease={() => onScoreChange(hole.hole, scoreField, score !== null ? Math.max(1, score - 1) : hole.par - 1)}
               onIncrease={() => onScoreChange(hole.hole, scoreField, score !== null ? score + 1 : hole.par + 1)}
             />
