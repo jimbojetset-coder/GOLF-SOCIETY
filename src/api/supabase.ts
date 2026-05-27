@@ -171,13 +171,13 @@ export function formatMatchDay(dateStr: string): string {
 // ── Date helpers (local-time safe) ────────────────────────────
 
 /** Parse YYYY-MM-DD as local midnight (avoids UTC shift on non-UTC devices) */
-function parseLocalDate(dateStr: string): Date {
+export function parseLocalDate(dateStr: string): Date {
   const [y, m, d] = dateStr.split('-').map(Number);
   return new Date(y, m - 1, d);
 }
 
 /** Serialise a Date to YYYY-MM-DD using local time components */
-function localDateStr(d: Date): string {
+export function localDateStr(d: Date): string {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
