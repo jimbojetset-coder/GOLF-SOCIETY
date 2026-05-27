@@ -66,7 +66,7 @@ begin
 
   -- Add user to competition_members if not already there
   insert into public.competition_members (competition_id, user_id, role)
-  values (v_player.competition_id, auth.uid(), 'spectator')
+  values (v_player.competition_id, auth.uid(), 'member')
   on conflict (competition_id, user_id) do nothing;
 
   return jsonb_build_object('success', true, 'player_id', p_player_id);
