@@ -15,7 +15,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { supabase } from '../../../src/api/supabase';
+import { supabase, parseLocalDate } from '../../../src/api/supabase';
 import { COLORS, SPACING, RADIUS, SHADOW } from '../../../src/constants/theme';
 import { parseStoredResult } from '../../../src/utils/matchStatus';
 
@@ -138,7 +138,7 @@ export default function CompetitionHistoryScreen() {
           <Text style={styles.headerTitle} numberOfLines={1}>{competition.name}</Text>
           <Text style={styles.headerDate}>
             {competition.event_date
-              ? new Date(competition.event_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
+              ? parseLocalDate(competition.event_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
               : ''}
           </Text>
         </View>
