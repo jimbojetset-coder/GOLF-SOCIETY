@@ -184,7 +184,23 @@ export default function LeaderboardTab() {
     setLoading(false); setRefreshing(false);
   }, [competitionId]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+
+    // Realtime subscription — reloads whenever a match or competition row changes.
+    // This gives the "live" feel without manual pull-to-refresh.
+    const channel = supabase
+      .channel('leaderboard-live')
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'matches' }, () => {
+        load();
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'competitions' }, () => {
+        load();
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [load]);
 
   useEffect(() => {
     if (highlights.length < 2) return;
