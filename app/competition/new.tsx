@@ -161,7 +161,7 @@ export default function NewCompetitionScreen() {
           share_token: shareToken,
           hero_image_url: heroImageUrl ?? DEFAULT_HERO,
           hide_leaderboard: hideLeaderboard,
-          results_hidden_count: resultsHiddenCount,
+          hide_last_n_results: resultsHiddenCount,
           team_a_points: 0,
           team_b_points: 0,
         })
