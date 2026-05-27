@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { supabase } from '../../../src/api/supabase';
+import { supabase, parseLocalDate } from '../../../src/api/supabase';
 import { Share } from 'react-native';
 import { useAuth } from '../../../src/hooks/useAuth';
 import { COLORS, SPACING, RADIUS, SHADOW, FORMAT_LABELS } from '../../../src/constants/theme';
@@ -110,7 +110,7 @@ export default function CompetitionDetailScreen() {
     const key = `${m.session_date ?? 'tbd'}_${m.session ?? ''}`;
     if (!sessionMap.has(key)) {
       const dateLabel = m.session_date
-        ? new Date(m.session_date).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' })
+        ? parseLocalDate(m.session_date).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' })
         : 'Unscheduled';
       const sesLabel = SESSION_LABELS[m.session ?? ''] ?? (m.session ?? '');
       sessionMap.set(key, { key, label: `${dateLabel}${sesLabel ? `  ·  ${sesLabel}` : ''}`, matches: [] });
@@ -174,9 +174,9 @@ export default function CompetitionDetailScreen() {
           )}
           {competition.start_date && (
             <Text style={styles.dateLabel}>
-              {new Date(competition.start_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+              {parseLocalDate(competition.start_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
               {competition.end_date && competition.end_date !== competition.start_date
-                ? ` – ${new Date(competition.end_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`
+                ? ` – ${parseLocalDate(competition.end_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`
                 : ''}
             </Text>
           )}
