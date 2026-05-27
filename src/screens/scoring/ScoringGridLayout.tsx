@@ -43,7 +43,7 @@ interface Props {
   teamBName: string;
   teamAColour: string;
   teamBColour: string;
-  matchStatus: string | { label: string; leader: 'A' | 'B' | null };
+  matchStatus: { label: string; leader: 'A' | 'B' | null };
   format: string;
   onScoreChange: (hole: number, field: keyof HoleScore, value: number | null) => void;
   onComplete: () => void;
@@ -276,7 +276,7 @@ export default function ScoringGridLayout({
       <View style={styles.header}>
         <Text style={[styles.teamLabel, { color: teamAColour }]}>{teamAName}</Text>
         <View style={styles.statusPill}>
-          <Text style={styles.statusText}>{matchStatus}</Text>
+          <Text style={styles.statusText}>{typeof matchStatus === 'string' ? matchStatus : matchStatus.label}</Text>
         </View>
         <Text style={[styles.teamLabel, { color: teamBColour }]}>{teamBName}</Text>
       </View>
@@ -310,10 +310,12 @@ export default function ScoringGridLayout({
         </View>
 
         {/* Finish button */}
-        <TouchableOpacity style={styles.finishBtn} onPress={onComplete}>
-          <Ionicons name="checkmark-circle" size={20} color="#fff" />
-          <Text style={styles.finishText}>Finish & Submit</Text>
-        </TouchableOpacity>
+        {holes.every(h => h.scoreA !== null && h.scoreB !== null) && (
+          <TouchableOpacity style={styles.finishBtn} onPress={onComplete}>
+            <Ionicons name="checkmark-circle" size={20} color="#fff" />
+            <Text style={styles.finishText}>Finish & Submit</Text>
+          </TouchableOpacity>
+        )}
 
         <View style={{ height: SPACING.xl }} />
       </ScrollView>
