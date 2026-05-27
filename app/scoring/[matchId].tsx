@@ -60,6 +60,27 @@ function nameToInitials(name: string): string {
   return name.trim().split(' ').filter(Boolean).slice(0, 2).map(n => n[0].toUpperCase()).join('');
 }
 
+// ── getTeamNet: Best Ball / Foursomes team net score ─────────
+// Returns the lowest net score among a team's players on a given hole.
+// For singles/foursomes (1 score per side) this is just that player's net.
+// For fourball/scramble (2 scores per side) this picks the better ball.
+function getTeamNet(
+  h: ScoringHole,
+  teamPlayers: DBPlayer[],
+  sMap: Record<string, number>,
+): number {
+  const isA = teamPlayers[0]?.team === 'A';
+  const rawScores: (number | null | undefined)[] = isA
+    ? [h.scoreA, h.scoreA2]
+    : [h.scoreB, h.scoreB2];
+  const nets = rawScores.map((s, i) =>
+    s != null && teamPlayers[i] != null
+      ? netScore(s, sMap[teamPlayers[i].id] ?? 0, h.strokeIndex)
+      : 999,
+  );
+  return Math.min(...nets);
+}
+
 // ── Main Screen ───────────────────────────────────────────────
 export default function ScoringScreen() {
   const { matchId } = useLocalSearchParams<{ matchId: string }>();
@@ -233,30 +254,30 @@ export default function ScoringScreen() {
   }, [holes]); // dbPlayers/strokesMap/competition are stable after loadMatch — intentional omission
 
   // ── Recalculate match status after every score change ──────
+  // Uses getTeamNet so 4-ball picks the best net per team (not just player 1).
   const recalcMatchStatus = (
     currentHoles: ScoringHole[],
     players: DBPlayer[],
-    strokesMap: Record<string, number>,
+    sMap: Record<string, number>,
     teamAName: string,
     teamBName: string,
   ) => {
     const teamA = players.filter(p => p.team === 'A');
     const teamB = players.filter(p => p.team === 'B');
-    const strokesA = strokesMap[teamA[0]?.id] ?? 0;
-    const strokesB = strokesMap[teamB[0]?.id] ?? 0;
 
     let holesUp = 0;
     let leader: 'A' | 'B' | null = null;
     let holesPlayed = 0;
 
     for (const h of currentHoles) {
-      const sA = h.scoreA;
-      const sB = h.scoreB;
-      if (sA === null || sB === null) break;
+      // A hole counts once at least one player per side has a score
+      const hasA = h.scoreA !== null || h.scoreA2 !== null;
+      const hasB = h.scoreB !== null || h.scoreB2 !== null;
+      if (!hasA || !hasB) break;
 
       holesPlayed++;
-      const nA = netScore(sA, strokesA, h.strokeIndex);
-      const nB = netScore(sB, strokesB, h.strokeIndex);
+      const nA = getTeamNet(h, teamA, sMap);
+      const nB = getTeamNet(h, teamB, sMap);
       const result = holeResult(nA, nB);
 
       if (result === 'A') {
@@ -325,8 +346,6 @@ export default function ScoringScreen() {
     try {
       const teamA = dbPlayers.filter(p => p.team === 'A');
       const teamB = dbPlayers.filter(p => p.team === 'B');
-      const strokesA = strokesMap[teamA[0]?.id] ?? 0;
-      const strokesB = strokesMap[teamB[0]?.id] ?? 0;
 
       // Always read ALL score fields from the ref — no stale field/value params
       const scorePayload: Partial<DBMatchScore> = {
@@ -340,15 +359,15 @@ export default function ScoringScreen() {
         score_b_player2: holeData.scoreB2 ?? null,
       };
 
-      // Compute net scores and hole result if both sides have scores
-      const effA = scorePayload.score_a;
-      const effB = scorePayload.score_b;
-      if (effA !== null && effB !== null) {
-        const nA = netScore(effA, strokesA, holeData.strokeIndex);
-        const nB = netScore(effB, strokesB, holeData.strokeIndex);
-        scorePayload.net_score_a = nA;
-        scorePayload.net_score_b = nB;
-        scorePayload.hole_result = holeResult(nA, nB);
+      // Compute net scores using getTeamNet — handles 4-ball best-ball correctly
+      const teamANet = getTeamNet(holeData, teamA, strokesMap);
+      const teamBNet = getTeamNet(holeData, teamB, strokesMap);
+      const hasA = holeData.scoreA !== null || holeData.scoreA2 !== null;
+      const hasB = holeData.scoreB !== null || holeData.scoreB2 !== null;
+      if (hasA && hasB && teamANet !== 999 && teamBNet !== 999) {
+        scorePayload.net_score_a = teamANet;
+        scorePayload.net_score_b = teamBNet;
+        scorePayload.hole_result = holeResult(teamANet, teamBNet);
       }
 
       const { error: upsertErr } = await supabase
@@ -429,19 +448,18 @@ export default function ScoringScreen() {
             const teamA = dbPlayers.filter(p => p.team === 'A');
             const teamB = dbPlayers.filter(p => p.team === 'B');
 
-            // Compute final result using actual strokes received
-            const finalStrokesA = strokesMap[teamA[0]?.id] ?? 0;
-            const finalStrokesB = strokesMap[teamB[0]?.id] ?? 0;
-
+            // Compute final result using getTeamNet — correct for all formats
             let holesUp = 0;
             let leader: 'A' | 'B' | null = null;
             let lastHolePlayed = 0;
 
             for (const h of currentHoles) {
-              if (h.scoreA === null || h.scoreB === null) break;
+              const hasA = h.scoreA !== null || h.scoreA2 !== null;
+              const hasB = h.scoreB !== null || h.scoreB2 !== null;
+              if (!hasA || !hasB) break;
               lastHolePlayed = h.hole;
-              const nA = netScore(h.scoreA, finalStrokesA, h.strokeIndex);
-              const nB = netScore(h.scoreB, finalStrokesB, h.strokeIndex);
+              const nA = getTeamNet(h, teamA, strokesMap);
+              const nB = getTeamNet(h, teamB, strokesMap);
               const res = holeResult(nA, nB);
               if (res === 'A') {
                 if (leader === 'B') { holesUp--; if (holesUp === 0) leader = null; }
