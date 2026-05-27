@@ -8,7 +8,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { supabase } from '../../src/api/supabase';
+import { supabase, parseLocalDate } from '../../src/api/supabase';
 import { useAuth } from '../../src/hooks/useAuth';
 import { COLORS, SPACING, RADIUS, SHADOW } from '../../src/constants/theme';
 import ShareCompetitionButton from '../../src/components/shared/ShareCompetitionButton';
@@ -55,7 +55,7 @@ export default function CompetitionTab() {
     const isOwner = item.created_by_user_id === user?.id;
     const cfg = STATUS_CONFIG[item.status] ?? STATUS_CONFIG.active;
     const dateLabel = (item.start_date ?? item.event_date)
-      ? new Date(item.start_date ?? item.event_date!).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+      ? parseLocalDate(item.start_date ?? item.event_date!).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
       : null;
 
     return (
