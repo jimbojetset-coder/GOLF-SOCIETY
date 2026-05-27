@@ -162,6 +162,7 @@ export default function NewCompetitionScreen() {
           hero_image_url: heroImageUrl ?? DEFAULT_HERO,
           hide_leaderboard: hideLeaderboard,
           hide_last_n_results: resultsHiddenCount,
+          handicap_allowance: handicapAllowance,
           team_a_points: 0,
           team_b_points: 0,
         })
@@ -368,6 +369,26 @@ export default function NewCompetitionScreen() {
                     </TouchableOpacity>
                   ))}
                 </View>
+              </View>
+
+              {/* Handicap Allowance */}
+              <Text style={styles.sectionSubheading}>Handicap Allowance</Text>
+              <View style={styles.allowanceRow}>
+                {[
+                  { label: '75%', value: 0.75 },
+                  { label: '90%', value: 0.90 },
+                  { label: '100%', value: 1.00 },
+                ].map(({ label, value }) => (
+                  <TouchableOpacity
+                    key={label}
+                    style={[styles.allowanceBtn, handicapAllowance === value && styles.allowanceBtnActive]}
+                    onPress={() => setHandicapAllowance(value)}
+                  >
+                    <Text style={[styles.allowanceBtnText, handicapAllowance === value && styles.allowanceBtnTextActive]}>
+                      {label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
               </View>
             </View>
           )}
@@ -819,6 +840,23 @@ const styles = StyleSheet.create({
   },
   countChipSelected:     { backgroundColor: COLORS.accent, borderColor: COLORS.accent },
   countChipText:         { fontSize: 13, fontWeight: '700', color: COLORS.textMuted },
+  allowanceRow: {
+    flexDirection: 'row', gap: SPACING.sm, marginTop: SPACING.xs,
+  },
+  allowanceBtn: {
+    flex: 1, paddingVertical: 10, borderRadius: RADIUS.md,
+    borderWidth: 1.5, borderColor: COLORS.border,
+    alignItems: 'center', backgroundColor: COLORS.surface,
+  },
+  allowanceBtnActive: {
+    borderColor: COLORS.accent, backgroundColor: COLORS.accent + '15',
+  },
+  allowanceBtnText: {
+    fontSize: 14, fontWeight: '600', color: COLORS.textSecondary,
+  },
+  allowanceBtnTextActive: {
+    color: COLORS.accent,
+  },
   countChipTextSelected: { color: COLORS.white },
   sectionSubtext:        { fontSize: 12, color: COLORS.textMuted, lineHeight: 18, marginBottom: SPACING.sm },
 
