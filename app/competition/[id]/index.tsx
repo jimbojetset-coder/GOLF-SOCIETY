@@ -238,6 +238,20 @@ export default function CompetitionDetailScreen() {
                     </View>
                   </View>
 
+                  {/* Start Scoring — shown to the assigned scorer */}
+                  {!isComplete && match.scorer_user_id === user?.id && (
+                    <TouchableOpacity
+                      style={styles.startScoringBtn}
+                      onPress={() => router.push(`/scoring/${match.id}`)}
+                      activeOpacity={0.85}
+                    >
+                      <Ionicons name="golf-outline" size={15} color="#fff" />
+                      <Text style={styles.startScoringText}>
+                        {isLive ? 'Continue Scoring' : 'Start Scoring'}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+
                   {/* Scorer share — creator only, pending or in_progress */}
                   {isCreator && !isComplete && match.scorer_share_token && (
                     <TouchableOpacity
