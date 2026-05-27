@@ -8,7 +8,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { supabase } from '../../src/api/supabase';
+import { supabase, parseLocalDate } from '../../src/api/supabase';
 import { useAuth } from '../../src/hooks/useAuth';
 import { COLORS, SPACING, RADIUS, SHADOW, FORMAT_LABELS } from '../../src/constants/theme';
 import { parseStoredResult } from '../../src/utils/matchStatus';
@@ -21,7 +21,7 @@ interface Competition {
   team_b_name: string; team_b_colour: string;
   team_a_points: number; team_b_points: number;
   status: string; hide_leaderboard: boolean;
-  results_hidden_count: number; created_by_user_id: string;
+  hide_last_n_results: number; created_by_user_id: string;
 }
 
 interface Match {
@@ -195,9 +195,9 @@ export default function LeaderboardTab() {
   const isMatchHidden = (match: Match, completed: Match[]): boolean => {
     if (match.status !== 'complete') return false;
     if (isCreator || compClosed) return false;
-    if (!competition || competition.results_hidden_count === 0) return false;
+    if (!competition || competition.hide_last_n_results === 0) return false;
     const sorted = [...completed].sort((a, b) => a.match_number - b.match_number);
-    const hiddenSet = new Set(sorted.slice(Math.max(0, sorted.length - competition.results_hidden_count)).map(m => m.id));
+    const hiddenSet = new Set(sorted.slice(Math.max(0, sorted.length - competition.hide_last_n_results)).map(m => m.id));
     return hiddenSet.has(match.id);
   };
 
@@ -250,7 +250,7 @@ export default function LeaderboardTab() {
     const key = `${m.session_date ?? 'tbd'}_${m.session ?? ''}`;
     if (!sessionMap.has(key)) {
       const dateLabel = m.session_date
-        ? new Date(m.session_date).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' })
+        ? parseLocalDate(m.session_date).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' })
         : 'Unscheduled';
       const sesLabel = SESSION_LABELS[m.session ?? ''] ?? (m.session ?? '');
       sessionMap.set(key, { key, label: `${dateLabel}${sesLabel ? `  ·  ${sesLabel}` : ''}`, matches: [] });
