@@ -7,7 +7,6 @@ import {
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 // simple local ID for UI keys only (not persisted to DB)
-const uid = () => Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 10);
 import { supabase } from '../../src/api/supabase';
 import { useAuth } from '../../src/hooks/useAuth';
 import { COLORS, SPACING, RADIUS, SHADOW } from '../../src/constants/theme';
@@ -20,7 +19,7 @@ import { DEFAULT_HERO } from '../../src/constants/heroImages';
 import { todayISO, addDays, dateRange, fmtDay, fmtFull } from '../../src/utils/dateHelpers';
 import { calcPlayingHandicap } from '../../src/utils/scoring';
 import ScorecardScanScreen from '../../src/screens/ScorecardScanScreen';
-
+const uid = () => Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 10);
 // ── Steps ─────────────────────────────────────────────────────
 type Step = 'details' | 'course' | 'teams' | 'dates' | 'players' | 'matches' | 'review';
 const STEPS: Step[] = ['details', 'course', 'teams', 'dates', 'players', 'matches', 'review'];
