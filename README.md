@@ -68,3 +68,4 @@ src/
 - [ ] Scorecard OCR integration (upload image → extract holes)
 - [ ] Share links for scorers (WhatsApp deep link)
 - [ ] Competition close flow + handicap suggestions
+
