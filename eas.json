@@ -17,8 +17,10 @@
         "disabled": true
       },
       "android": {
-        "buildType": "apk"
+        "buildType": "apk",
+        "image": "latest"
       },
+      "node": "20.19.4",
       "env": {
         "EXPO_PUBLIC_SUPABASE_URL": "https://ffkrwdvevjuloyxnliga.supabase.co"
       }
@@ -27,6 +29,7 @@
       "android": {
         "buildType": "app-bundle"
       },
+      "node": "20.19.4",
       "env": {
         "EXPO_PUBLIC_SUPABASE_URL": "https://ffkrwdvevjuloyxnliga.supabase.co"
       }
