@@ -6,7 +6,8 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { nanoid } from 'nanoid/non-secure';
+// simple local ID for UI keys only (not persisted to DB)
+const uid = () => Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 10);
 import { supabase } from '../../src/api/supabase';
 import { useAuth } from '../../src/hooks/useAuth';
 import { COLORS, SPACING, RADIUS, SHADOW } from '../../src/constants/theme';
@@ -70,12 +71,12 @@ export default function NewCompetitionScreen() {
 
   // ── Players ──────────────────────────────────────────────────
   const [players, setPlayers] = useState<PlayerDraft[]>([
-    { id: nanoid(), name: '', handicap_index: '', team: 'A', has_app: false },
-    { id: nanoid(), name: '', handicap_index: '', team: 'B', has_app: false },
+    { id: uid(), name: '', handicap_index: '', team: 'A', has_app: false },
+    { id: uid(), name: '', handicap_index: '', team: 'B', has_app: false },
   ]);
 
   const addPlayer = (team: 'A' | 'B') => {
-    setPlayers(prev => [...prev, { id: nanoid(), name: '', handicap_index: '', team, has_app: false }]);
+    setPlayers(prev => [...prev, { id: uid(), name: '', handicap_index: '', team, has_app: false }]);
   };
 
   const updatePlayer = (id: string, data: PlayerDraft) =>
@@ -86,11 +87,11 @@ export default function NewCompetitionScreen() {
 
   // ── Matches ──────────────────────────────────────────────────
   const [matches, setMatches] = useState<MatchDraft[]>([
-    { id: nanoid(), format: 'fourball', session_date: startDate, session: 'Morning', scorer_player_id: null, players_a: [], players_b: [] },
+    { id: uid(), format: 'fourball', session_date: startDate, session: 'Morning', scorer_player_id: null, players_a: [], players_b: [] },
   ]);
 
   const addMatch = () => setMatches(prev => [...prev, {
-    id: nanoid(), format: 'fourball',
+    id: uid(), format: 'fourball',
     session_date: startDate, session: 'Afternoon',
     scorer_player_id: null, players_a: [], players_b: [],
   }]);
@@ -139,7 +140,7 @@ export default function NewCompetitionScreen() {
 
     try {
       // 1. Generate share token
-      const shareToken = nanoid(16);
+      const shareToken = uid();
 
       // 2. Create competition
       const { data: comp, error: compErr } = await supabase
@@ -209,7 +210,7 @@ export default function NewCompetitionScreen() {
         points_b: 0,
         holes_played: 0,
         scorer_user_id: null,   // assigned when scorer claims their match
-        scorer_share_token: nanoid(12),
+        scorer_share_token: uid(),
       }));
 
       const { error: matchErr } = await supabase
