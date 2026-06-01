@@ -20,18 +20,18 @@
         "buildType": "apk",
         "image": "latest"
       },
-      "node": "20.19.4",
       "env": {
-        "EXPO_PUBLIC_SUPABASE_URL": "https://ffkrwdvevjuloyxnliga.supabase.co"
+        "EXPO_PUBLIC_SUPABASE_URL": "https://ffkrwdvevjuloyxnliga.supabase.co",
+        "YARN_IGNORE_ENGINES": "true"
       }
     },
     "production": {
       "android": {
         "buildType": "app-bundle"
       },
-      "node": "20.19.4",
       "env": {
-        "EXPO_PUBLIC_SUPABASE_URL": "https://ffkrwdvevjuloyxnliga.supabase.co"
+        "EXPO_PUBLIC_SUPABASE_URL": "https://ffkrwdvevjuloyxnliga.supabase.co",
+        "YARN_IGNORE_ENGINES": "true"
       }
     }
   },
