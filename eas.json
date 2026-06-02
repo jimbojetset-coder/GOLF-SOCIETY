@@ -8,7 +8,8 @@
       "developmentClient": true,
       "distribution": "internal",
       "android": {
-        "buildType": "apk"
+        "buildType": "apk",
+        "image": "expo:android-14"
       }
     },
     "preview": {
@@ -18,7 +19,7 @@
       },
       "android": {
         "buildType": "apk",
-        "image": "latest"
+        "image": "expo:android-14"
       },
       "env": {
         "EXPO_PUBLIC_SUPABASE_URL": "https://ffkrwdvevjuloyxnliga.supabase.co",
@@ -27,7 +28,8 @@
     },
     "production": {
       "android": {
-        "buildType": "app-bundle"
+        "buildType": "app-bundle",
+        "image": "expo:android-14"
       },
       "env": {
         "EXPO_PUBLIC_SUPABASE_URL": "https://ffkrwdvevjuloyxnliga.supabase.co",
@@ -39,3 +41,4 @@
     "production": {}
   }
 }
+
