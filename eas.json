@@ -1,8 +1,9 @@
 {
   "build": {
-    "development": {
+    "production": {
       "android": {
-        "image": "expo:android-14"
+        "image": "expo:android-14",
+        "buildType": "app-bundle"
       }
     },
     "preview": {
@@ -10,10 +11,9 @@
         "image": "expo:android-14"
       }
     },
-    "production": {
+    "development": {
       "android": {
-        "image": "expo:android-14",
-        "buildType": "app-bundle"
+        "image": "expo:android-14"
       }
     }
   }
