@@ -2,18 +2,18 @@
   "build": {
     "production": {
       "android": {
-        "image": "expo:android-14",
+        "image": "ubuntu-24.04-jdk-17-ndk-r27b-sdk-55",
         "buildType": "app-bundle"
       }
     },
     "preview": {
       "android": {
-        "image": "expo:android-14"
+        "image": "ubuntu-24.04-jdk-17-ndk-r27b-sdk-55"
       }
     },
     "development": {
       "android": {
-        "image": "expo:android-14"
+        "image": "ubuntu-24.04-jdk-17-ndk-r27b-sdk-55"
       }
     }
   }
