@@ -8,7 +8,8 @@
     },
     "preview": {
       "android": {
-        "image": "ubuntu-24.04-jdk-17-ndk-r27b-sdk-55"
+        "image": "ubuntu-24.04-jdk-17-ndk-r27b-sdk-55",
+        "buildType": "apk"
       }
     },
     "development": {
