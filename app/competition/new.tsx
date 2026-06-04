@@ -68,6 +68,9 @@ export default function NewCompetitionScreen() {
   const [startDate, setStartDate] = useState(addDays(todayISO(), 7));
   const [endDate, setEndDate] = useState(addDays(todayISO(), 9));
 
+  // ── Handicap allowance (75% / 90% / 100%) ───────────────────
+  const [handicapAllowance, setHandicapAllowance] = useState<number>(0.9);
+
   // ── Players ──────────────────────────────────────────────────
   const [players, setPlayers] = useState<PlayerDraft[]>([
     { id: uid(), name: '', handicap_index: '', team: 'A', has_app: false },

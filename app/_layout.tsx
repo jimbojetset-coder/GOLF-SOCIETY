@@ -4,6 +4,14 @@ import { StatusBar } from 'expo-status-bar';
 import { useAuth } from '../src/hooks/useAuth';
 import { useJoinCompetition } from '../src/hooks/useJoinCompetition';
 
+// Module-level holder for a share token that arrived before the user signed in.
+// Using a module variable instead of `globalThis` keeps it TypeScript-strict
+// safe and isolated from the global namespace.
+let pendingShareToken: string | undefined;
+export function setPendingShareToken(token: string | undefined) {
+  pendingShareToken = token;
+}
+
 export default function RootLayout() {
   const { session, loading } = useAuth();
   const segments = useSegments();
@@ -21,10 +29,10 @@ export default function RootLayout() {
       router.replace('/(auth)/sign-in');
     } else if (session && inAuthGroup) {
       // Pick up any pending share token stored before sign-in
-      const pendingToken = global._pendingShareToken;
-      if (pendingToken) {
-        global._pendingShareToken = undefined;
-        router.replace(`/join/${pendingToken}`);
+      const t = pendingShareToken;
+      if (t) {
+        pendingShareToken = undefined;
+        router.replace(`/join/${t}`);
       } else {
         router.replace('/(tabs)/competition');
       }

@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../api/supabase';
 import { useAuth } from './useAuth';
+import { setPendingShareToken } from '../../app/_layout';
 
 /**
  * Listens for deep links: golfscoring://join/<share_token>
@@ -35,8 +36,9 @@ export function useJoinCompetition() {
         // User is logged in: join immediately
         await handleJoin(shareToken);
       } else {
-        // User NOT logged in: Persist token to disk and go to sign-in
+        // User NOT logged in: Persist token to disk + memory, then go to sign-in
         await AsyncStorage.setItem('pending_share_token', shareToken);
+        setPendingShareToken(shareToken);
         router.replace('/(auth)/sign-in');
       }
     };
