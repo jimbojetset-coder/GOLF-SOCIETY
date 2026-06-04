@@ -34,6 +34,17 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         cameraPermission: 'Allow Golf Scoring to use the camera to scan scorecards.',
       },
     ],
+    [
+      'expo-build-properties',
+      {
+        android: {
+          kotlinVersion: '1.9.25',
+          compileSdkVersion: 35,
+          targetSdkVersion: 34,
+          buildToolsVersion: '35.0.0',
+        },
+      },
+    ],
   ],
   scheme: 'golfscoring',
   extra: {
