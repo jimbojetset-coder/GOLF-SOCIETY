@@ -166,7 +166,9 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row', justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: SPACING.md, paddingTop: SPACING.lg, paddingBottom: SPACING.md,
+    paddingHorizontal: SPACING.md,
+    paddingTop: SPACING.xxl,
+    paddingBottom: SPACING.md,
   },
   headerTitle: { fontSize: 30, fontWeight: '800', color: COLORS.text, letterSpacing: -0.5 },
   fab: {

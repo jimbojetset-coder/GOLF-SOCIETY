@@ -1,11 +1,11 @@
 /**
  * Hero image picker for competition setup.
- * Shows stock options + an "Upload your own" option.
+ * Shows stock options + Camera + Library upload options.
  */
 import React, { useState } from 'react';
 import {
   View, Text, TouchableOpacity, Image,
-  StyleSheet, ScrollView, ActivityIndicator,
+  StyleSheet, ScrollView, ActivityIndicator, Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -23,16 +23,35 @@ interface Props {
 export default function HeroImagePicker({ value, onChange }: Props) {
   const [uploading, setUploading] = useState(false);
 
-  const handleCustomUpload = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') return;
+  const handleUpload = async (source: 'camera' | 'library') => {
+    // Permissions
+    if (source === 'camera') {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Camera permission needed', 'Allow camera access to take a photo.');
+        return;
+      }
+    } else {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Photos permission needed', 'Allow photo access to pick an image.');
+        return;
+      }
+    }
 
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [16, 9],
-      quality: 1,
-    });
+    const result = source === 'camera'
+      ? await ImagePicker.launchCameraAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          allowsEditing: true,
+          aspect: [16, 9],
+          quality: 1,
+        })
+      : await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          allowsEditing: true,
+          aspect: [16, 9],
+          quality: 1,
+        });
 
     if (result.canceled || !result.assets[0]) return;
 
@@ -55,10 +74,13 @@ export default function HeroImagePicker({ value, onChange }: Props) {
         .from('competition-heroes')
         .upload(fileName, bytes, { contentType: 'image/jpeg', upsert: true });
 
-      if (!error) {
-        const { data } = supabase.storage.from('competition-heroes').getPublicUrl(fileName);
-        onChange(data.publicUrl);
+      if (error) {
+        Alert.alert('Upload failed', error.message);
+        return;
       }
+
+      const { data } = supabase.storage.from('competition-heroes').getPublicUrl(fileName);
+      onChange(data.publicUrl);
     } finally {
       setUploading(false);
     }
@@ -70,17 +92,32 @@ export default function HeroImagePicker({ value, onChange }: Props) {
       <Text style={styles.hint}>Shown behind the hole number during scoring.</Text>
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row}>
-        {/* Upload custom */}
+        {/* Take Photo */}
         <TouchableOpacity
           style={[styles.thumb, styles.uploadThumb]}
-          onPress={handleCustomUpload}
+          onPress={() => handleUpload('camera')}
           disabled={uploading}
         >
           {uploading
             ? <ActivityIndicator color={COLORS.accent} />
             : <>
-                <Ionicons name="cloud-upload-outline" size={24} color={COLORS.accent} />
-                <Text style={styles.uploadLabel}>Your photo</Text>
+                <Ionicons name="camera-outline" size={24} color={COLORS.accent} />
+                <Text style={styles.uploadLabel}>Take Photo</Text>
+              </>
+          }
+        </TouchableOpacity>
+
+        {/* Pick from Library */}
+        <TouchableOpacity
+          style={[styles.thumb, styles.uploadThumb]}
+          onPress={() => handleUpload('library')}
+          disabled={uploading}
+        >
+          {uploading
+            ? <ActivityIndicator color={COLORS.accent} />
+            : <>
+                <Ionicons name="images-outline" size={24} color={COLORS.accent} />
+                <Text style={styles.uploadLabel}>Your Photo</Text>
               </>
           }
         </TouchableOpacity>
@@ -108,7 +145,6 @@ export default function HeroImagePicker({ value, onChange }: Props) {
         })}
       </ScrollView>
 
-      {/* Preview of selected */}
       {value && (
         <Image
           source={{ uri: value }}

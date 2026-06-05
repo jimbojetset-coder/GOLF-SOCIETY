@@ -28,10 +28,12 @@ export interface MatchDraft {
 const FORMATS: MatchDraft['format'][] = ['fourball', 'foursomes', 'singles', 'scramble'];
 const SESSIONS: MatchDraft['session'][] = ['Morning', 'Afternoon', 'Evening'];
 
-// How many players each team needs per format
+// How many players each team needs per format.
+// All formats use 2 players per team (a "tee group" of 4) except
+// Singles which is the only true 1-v-1 format.
 const TEAM_SIZE: Record<MatchDraft['format'], number> = {
   singles: 1,
-  foursomes: 1,
+  foursomes: 2,
   fourball: 2,
   scramble: 2,
 };

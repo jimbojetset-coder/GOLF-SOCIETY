@@ -38,6 +38,13 @@ const DEFAULT_SLOPE = 113;
 const DEFAULT_RATING = 72;
 const DEFAULT_PAR = 72;
 
+const FORMAT_LABEL: Record<MatchDraft['format'], string> = {
+  fourball: 'Fourball',
+  foursomes: 'Foursomes',
+  singles: 'Singles',
+  scramble: 'Scramble',
+};
+
 export default function NewCompetitionScreen() {
   const router = useRouter();
   const { user } = useAuth();
@@ -51,11 +58,14 @@ export default function NewCompetitionScreen() {
   const [notes, setNotes] = useState('');
   const [heroImageUrl, setHeroImageUrl] = useState<string | null>(null);
   const [hideLeaderboard, setHideLeaderboard] = useState(false);
-  // Course / tee (from scan or skip)
+  // Course / tee (from scan or manual)
   const [courseId, setCourseId] = useState<string | null>(null);
   const [teeId, setTeeId] = useState<string | null>(null);
   const [courseName, setCourseName] = useState<string>('');
   const [showScanScreen, setShowScanScreen] = useState(false);
+  const [showManualEntry, setShowManualEntry] = useState(false);
+  const [manualName, setManualName] = useState('');
+  const [manualSavingCourse, setManualSavingCourse] = useState(false);
   const [resultsHiddenCount, setResultsHiddenCount] = useState(0);
 
   // ── Teams ────────────────────────────────────────────────────
@@ -104,11 +114,60 @@ export default function NewCompetitionScreen() {
   const removeMatch = (id: string) =>
     setMatches(prev => prev.filter(m => m.id !== id));
 
+  // ── Manual course entry ─────────────────────────────────────
+  const saveManualCourse = async () => {
+    if (!user) return;
+    const trimmed = manualName.trim();
+    if (trimmed.length < 2) {
+      Alert.alert('Course name', 'Please enter a course name.');
+      return;
+    }
+    setManualSavingCourse(true);
+    try {
+      const { data: courseData, error: courseErr } = await supabase
+        .from('courses')
+        .insert({
+          name: trimmed,
+          holes_count: 18,
+          created_by_user_id: user.id,
+          source: 'manual',
+          is_verified: false,
+        })
+        .select()
+        .single();
+      if (courseErr) throw courseErr;
+
+      const { data: teeData, error: teeErr } = await supabase
+        .from('course_tees')
+        .insert({
+          course_id: courseData.id,
+          tee_name: 'Yellow',
+          tee_colour: 'Yellow',
+          course_rating: DEFAULT_RATING,
+          slope_rating: DEFAULT_SLOPE,
+          total_par: DEFAULT_PAR,
+        })
+        .select()
+        .single();
+      if (teeErr) throw teeErr;
+
+      setCourseId(courseData.id);
+      setTeeId(teeData.id);
+      setCourseName(trimmed);
+      setShowManualEntry(false);
+      setManualName('');
+    } catch (e: any) {
+      Alert.alert('Save failed', e?.message ?? 'Could not save the course.');
+    } finally {
+      setManualSavingCourse(false);
+    }
+  };
+
   // ── Validation ───────────────────────────────────────────────
   const canProceed = (): boolean => {
     switch (step) {
       case 'details': return name.trim().length > 0;
-      case 'course': return true; // scan is optional
+      case 'course': return true; // scan / manual entry is optional
       case 'teams': return teamAName.trim().length > 0 && teamBName.trim().length > 0;
       case 'dates': return startDate <= endDate;
       case 'players': return players.filter(p => p.name.trim()).length >= 2;
@@ -144,35 +203,53 @@ export default function NewCompetitionScreen() {
       // 1. Generate share token
       const shareToken = uid();
 
-      // 2. Create competition
-      const { data: comp, error: compErr } = await supabase
-        .from('competitions')
-        .insert({
-          name: name.trim(),
-          notes: notes.trim() || null,
-          start_date: startDate,
-          end_date: endDate,
-          event_date: startDate,   // keep legacy field in sync
-          course_id: courseId,
-          tee_id: teeId,
-          team_a_name: teamAName.trim(),
-          team_a_colour: teamAColour,
-          team_b_name: teamBName.trim(),
-          team_b_colour: teamBColour,
-          status: 'active',
-          created_by_user_id: user.id,
-          share_token: shareToken,
-          hero_image_url: heroImageUrl ?? DEFAULT_HERO,
-          hide_leaderboard: hideLeaderboard,
-          hide_last_n_results: resultsHiddenCount,
-          handicap_allowance: handicapAllowance,
-          team_a_points: 0,
-          team_b_points: 0,
-        })
-        .select()
-        .single();
+      // 2. Build the competition payload. We split optional / newer columns
+      //    out so that if a Supabase project hasn't been migrated to the
+      //    latest schema yet, the basic insert still succeeds.
+      const baseCompetition: Record<string, any> = {
+        name: name.trim(),
+        notes: notes.trim() || null,
+        start_date: startDate,
+        end_date: endDate,
+        event_date: startDate,
+        course_id: courseId,
+        tee_id: teeId,
+        team_a_name: teamAName.trim(),
+        team_a_colour: teamAColour,
+        team_b_name: teamBName.trim(),
+        team_b_colour: teamBColour,
+        status: 'active',
+        created_by_user_id: user.id,
+        share_token: shareToken,
+        hero_image_url: heroImageUrl ?? DEFAULT_HERO,
+        hide_leaderboard: hideLeaderboard,
+        team_a_points: 0,
+        team_b_points: 0,
+      };
 
-      if (compErr || !comp) throw compErr ?? new Error('Failed to create competition');
+      const optionalCols: Record<string, any> = {
+        hide_last_n_results: resultsHiddenCount,
+        handicap_allowance: handicapAllowance,
+      };
+
+      // First try with all columns; if a missing-column error comes back,
+      // retry with only the base columns so users on old schemas can still
+      // create competitions while they migrate.
+      let comp: any = null;
+      const insertWith = async (extra: Record<string, any>) => {
+        return await supabase
+          .from('competitions')
+          .insert({ ...baseCompetition, ...extra })
+          .select()
+          .single();
+      };
+
+      let { data, error: compErr } = await insertWith(optionalCols);
+      if (compErr && /Could not find the .* column/.test(compErr.message)) {
+        ({ data, error: compErr } = await insertWith({}));
+      }
+      if (compErr || !data) throw compErr ?? new Error('Failed to create competition');
+      comp = data;
 
       // 3. Create players
       const validPlayers = players.filter(p => p.name.trim());
@@ -184,7 +261,7 @@ export default function NewCompetitionScreen() {
           ? calcPlayingHandicap(parseFloat(p.handicap_index), DEFAULT_SLOPE, DEFAULT_RATING, DEFAULT_PAR)
           : null,
         team: p.team,
-        user_id: null,   // always null at creation — players link themselves later
+        user_id: null,
       }));
 
       const { data: createdPlayers, error: playerErr } = await supabase
@@ -194,7 +271,6 @@ export default function NewCompetitionScreen() {
 
       if (playerErr) throw playerErr;
 
-      // Build draft_id → db_id map for scorer lookup
       const playerIdMap: Record<string, string> = {};
       validPlayers.forEach((draft, i) => {
         if (createdPlayers?.[i]) playerIdMap[draft.id] = createdPlayers[i].id;
@@ -211,7 +287,7 @@ export default function NewCompetitionScreen() {
         points_a: 0,
         points_b: 0,
         holes_played: 0,
-        scorer_user_id: null,   // assigned when scorer claims their match
+        scorer_user_id: null,
         scorer_share_token: uid(),
       }));
 
@@ -247,7 +323,7 @@ export default function NewCompetitionScreen() {
             player_id: dbPlayerId,
             team: draftPlayer.team,
             playing_handicap: ph,
-            strokes_received: 0,  // recalculated on scoring screen load
+            strokes_received: 0,
           });
         }
       }
@@ -276,7 +352,6 @@ export default function NewCompetitionScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Progress bar */}
       <View style={styles.progressBar}>
         {STEPS.map((s, i) => (
           <View
@@ -294,7 +369,6 @@ export default function NewCompetitionScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <ScrollView ref={scrollRef} contentContainerStyle={styles.content}>
-          {/* Back + title */}
           <View style={styles.titleRow}>
             <TouchableOpacity onPress={back} style={styles.backBtn}>
               <Ionicons name="chevron-back" size={22} color={COLORS.text} />
@@ -326,7 +400,6 @@ export default function NewCompetitionScreen() {
               />
               <HeroImagePicker value={heroImageUrl} onChange={setHeroImageUrl} />
 
-              {/* Privacy settings */}
               <Text style={styles.sectionSubheading}>Privacy</Text>
 
               <View style={styles.privacyRow}>
@@ -374,7 +447,6 @@ export default function NewCompetitionScreen() {
                 </View>
               </View>
 
-              {/* Handicap Allowance */}
               <Text style={styles.sectionSubheading}>Handicap Allowance</Text>
               <View style={styles.allowanceRow}>
                 {[
@@ -401,30 +473,76 @@ export default function NewCompetitionScreen() {
             <View style={styles.section}>
               <Text style={styles.label}>Course (optional)</Text>
               <Text style={styles.sectionSubtext}>
-                Scan the scorecard to set up holes, par, stroke index, and course rating.
-                You can skip this and add course details later.
+                Scan a scorecard to auto-fill holes, par, and stroke index — or add
+                a course by name and edit details later. You can also skip this entirely.
               </Text>
 
               {courseId ? (
-                /* Course already scanned */
+                /* Course already set */
                 <View style={styles.courseDoneCard}>
                   <View style={styles.courseDoneLeft}>
                     <Ionicons name="checkmark-circle" size={22} color={COLORS.accent} />
                     <View>
                       <Text style={styles.courseDoneName}>{courseName}</Text>
-                      <Text style={styles.courseDoneHint}>Course set up from scan</Text>
+                      <Text style={styles.courseDoneHint}>Course set</Text>
                     </View>
                   </View>
                   <TouchableOpacity onPress={() => { setCourseId(null); setTeeId(null); setCourseName(''); }}>
                     <Ionicons name="close-circle-outline" size={22} color={COLORS.textMuted} />
                   </TouchableOpacity>
                 </View>
+              ) : showManualEntry ? (
+                <View style={styles.manualCard}>
+                  <Text style={styles.label}>Course name</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={manualName}
+                    onChangeText={setManualName}
+                    placeholder="e.g. Royal Birkdale"
+                    placeholderTextColor={COLORS.textMuted}
+                    autoFocus
+                  />
+                  <View style={styles.manualBtnRow}>
+                    <TouchableOpacity
+                      style={[styles.manualBtnSecondary]}
+                      onPress={() => { setShowManualEntry(false); setManualName(''); }}
+                    >
+                      <Text style={styles.manualBtnSecondaryText}>Cancel</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.manualBtnPrimary, manualSavingCourse && { opacity: 0.5 }]}
+                      onPress={saveManualCourse}
+                      disabled={manualSavingCourse}
+                    >
+                      {manualSavingCourse
+                        ? <ActivityIndicator color="#fff" />
+                        : <Text style={styles.manualBtnPrimaryText}>Save course</Text>}
+                    </TouchableOpacity>
+                  </View>
+                  <Text style={styles.manualHint}>
+                    A default 18-hole / par-72 yellow tee will be saved. You can edit details later.
+                  </Text>
+                </View>
               ) : (
-                <TouchableOpacity style={styles.scanBtn} onPress={() => setShowScanScreen(true)}>
-                  <Ionicons name="scan-outline" size={22} color={COLORS.accent} />
-                  <Text style={styles.scanBtnText}>Scan Scorecard</Text>
-                  <Ionicons name="chevron-forward" size={16} color={COLORS.textMuted} />
-                </TouchableOpacity>
+                <>
+                  <TouchableOpacity style={styles.scanBtn} onPress={() => setShowScanScreen(true)}>
+                    <Ionicons name="scan-outline" size={22} color={COLORS.accent} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.scanBtnText}>Scan Scorecard</Text>
+                      <Text style={styles.scanBtnSub}>AI-extracts holes, par, SI, rating</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={16} color={COLORS.textMuted} />
+                  </TouchableOpacity>
+
+                  <TouchableOpacity style={styles.manualBtn} onPress={() => setShowManualEntry(true)}>
+                    <Ionicons name="create-outline" size={22} color={COLORS.text} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.manualBtnText}>Add manually</Text>
+                      <Text style={styles.manualBtnSub}>Just enter the course name</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={16} color={COLORS.textMuted} />
+                  </TouchableOpacity>
+                </>
               )}
 
               <TouchableOpacity style={styles.skipBtn} onPress={next}>
@@ -489,7 +607,6 @@ export default function NewCompetitionScreen() {
                 />
               </View>
 
-              {/* Preview */}
               <View style={styles.previewRow}>
                 <View style={[styles.previewTeam, { backgroundColor: teamAColour + '22' }]}>
                   <View style={[styles.previewDot, { backgroundColor: teamAColour }]} />
@@ -525,7 +642,6 @@ export default function NewCompetitionScreen() {
                 onChange={setEndDate}
                 minDate={startDate}
               />
-              {/* Summary */}
               <View style={styles.dateSummary}>
                 <Text style={styles.dateSummaryText}>
                   {startDate === endDate
@@ -544,7 +660,6 @@ export default function NewCompetitionScreen() {
                 Toggle "Has the app" for anyone who'll be scoring a match.
               </Text>
 
-              {/* Team A */}
               <View style={styles.teamSection}>
                 <View style={[styles.teamHeader, { borderLeftColor: teamAColour }]}>
                   <Text style={[styles.teamHeaderText, { color: teamAColour }]}>{teamAName}</Text>
@@ -568,7 +683,6 @@ export default function NewCompetitionScreen() {
                 </TouchableOpacity>
               </View>
 
-              {/* Team B */}
               <View style={styles.teamSection}>
                 <View style={[styles.teamHeader, { borderLeftColor: teamBColour }]}>
                   <Text style={[styles.teamHeaderText, { color: teamBColour }]}>{teamBName}</Text>
@@ -650,8 +764,58 @@ export default function NewCompetitionScreen() {
                 </View>
               </View>
 
+              {/* Matches & their tee groups */}
               <View style={styles.reviewBlock}>
-                <Text style={styles.reviewLabel}>Players ({players.filter(p => p.name).length})</Text>
+                <Text style={styles.reviewLabel}>Matches & Tee Groups ({matches.length})</Text>
+                {matches.map((m, i) => {
+                  const aNames = m.players_a
+                    .map(id => players.find(p => p.id === id)?.name)
+                    .filter(Boolean) as string[];
+                  const bNames = m.players_b
+                    .map(id => players.find(p => p.id === id)?.name)
+                    .filter(Boolean) as string[];
+
+                  return (
+                    <View key={m.id} style={styles.reviewMatchCard}>
+                      <View style={styles.reviewMatchHeader}>
+                        <View style={styles.reviewMatchNum}>
+                          <Text style={styles.reviewMatchNumText}>{i + 1}</Text>
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.reviewMatchTitle}>
+                            {FORMAT_LABEL[m.format]}
+                          </Text>
+                          <Text style={styles.reviewMatchSub}>
+                            {fmtDay(m.session_date)} · {m.session}
+                          </Text>
+                        </View>
+                      </View>
+                      <View style={styles.reviewTeeGroup}>
+                        <View style={[styles.reviewTeeSide, { borderLeftColor: teamAColour }]}>
+                          <Text style={[styles.reviewTeeTeamName, { color: teamAColour }]}>{teamAName}</Text>
+                          {aNames.length > 0
+                            ? aNames.map((n, j) => (
+                                <Text key={j} style={styles.reviewTeeName}>· {n}</Text>
+                              ))
+                            : <Text style={styles.reviewTeeMissing}>Not assigned</Text>}
+                        </View>
+                        <View style={[styles.reviewTeeSide, { borderLeftColor: teamBColour }]}>
+                          <Text style={[styles.reviewTeeTeamName, { color: teamBColour }]}>{teamBName}</Text>
+                          {bNames.length > 0
+                            ? bNames.map((n, j) => (
+                                <Text key={j} style={styles.reviewTeeName}>· {n}</Text>
+                              ))
+                            : <Text style={styles.reviewTeeMissing}>Not assigned</Text>}
+                        </View>
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+
+              {/* Full roster (collapsed reference) */}
+              <View style={styles.reviewBlock}>
+                <Text style={styles.reviewLabel}>Full Roster ({players.filter(p => p.name).length})</Text>
                 {['A', 'B'].map(team => (
                   <View key={team} style={{ marginTop: 4 }}>
                     <Text style={[styles.reviewTeamHeader, {
@@ -665,15 +829,6 @@ export default function NewCompetitionScreen() {
                       </Text>
                     ))}
                   </View>
-                ))}
-              </View>
-
-              <View style={styles.reviewBlock}>
-                <Text style={styles.reviewLabel}>Matches ({matches.length})</Text>
-                {matches.map((m, i) => (
-                  <Text key={m.id} style={styles.reviewMatchRow}>
-                    {i + 1}. {m.format.charAt(0).toUpperCase() + m.format.slice(1)} · {fmtDay(m.session_date)} {m.session}
-                  </Text>
                 ))}
               </View>
             </View>
@@ -717,7 +872,6 @@ export default function NewCompetitionScreen() {
 const styles = StyleSheet.create({
   container:    { flex: 1, backgroundColor: COLORS.background },
 
-  // Progress bar
   progressBar: {
     flexDirection: 'row', gap: 4,
     paddingHorizontal: SPACING.md, paddingTop: SPACING.sm,
@@ -757,7 +911,6 @@ const styles = StyleSheet.create({
   inputFocused: { borderColor: COLORS.accent },
   multiline: { height: 88, textAlignVertical: 'top' },
 
-  // Team block
   teamBlock: { gap: SPACING.md },
   teamSection: { gap: SPACING.sm },
   teamHeader: {
@@ -781,7 +934,6 @@ const styles = StyleSheet.create({
   previewName: { fontSize: 16, fontWeight: '700', color: COLORS.text },
   vs:          { fontSize: 13, color: COLORS.textMuted },
 
-  // Dates
   dateSummary: {
     backgroundColor: COLORS.accentLight,
     borderRadius: RADIUS.md, padding: SPACING.md,
@@ -791,14 +943,12 @@ const styles = StyleSheet.create({
   },
   dateSummaryText: { fontSize: 15, fontWeight: '700', color: COLORS.accent },
 
-  // Add button
   addBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingVertical: SPACING.sm,
   },
   addBtnText: { fontSize: 14, fontWeight: '600' },
 
-  // Review blocks
   reviewBlock: {
     backgroundColor: COLORS.surface,
     borderRadius: RADIUS.lg, padding: SPACING.md,
@@ -814,7 +964,33 @@ const styles = StyleSheet.create({
   reviewTeamName:    { fontSize: 17, fontWeight: '800' },
   reviewTeamHeader:  { fontSize: 11, fontWeight: '700', color: COLORS.textMuted, marginTop: 6 },
   reviewPlayerRow:   { fontSize: 14, color: COLORS.text, paddingLeft: 8, paddingVertical: 2 },
-  reviewMatchRow:    { fontSize: 14, color: COLORS.text, paddingLeft: 8, paddingVertical: 2 },
+
+  // Match cards in review
+  reviewMatchCard: {
+    backgroundColor: COLORS.surfaceHigh,
+    borderRadius: RADIUS.md,
+    padding: SPACING.sm,
+    marginTop: SPACING.sm,
+    borderWidth: 1, borderColor: COLORS.border,
+  },
+  reviewMatchHeader: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, marginBottom: SPACING.sm },
+  reviewMatchNum: {
+    width: 24, height: 24, borderRadius: 12,
+    backgroundColor: COLORS.accent,
+    justifyContent: 'center', alignItems: 'center',
+  },
+  reviewMatchNumText: { fontSize: 11, fontWeight: '800', color: '#fff' },
+  reviewMatchTitle:   { fontSize: 14, fontWeight: '700', color: COLORS.text },
+  reviewMatchSub:     { fontSize: 11, color: COLORS.textMuted, marginTop: 2 },
+  reviewTeeGroup:     { flexDirection: 'row', gap: SPACING.sm },
+  reviewTeeSide: {
+    flex: 1,
+    borderLeftWidth: 3, paddingLeft: SPACING.sm,
+    paddingVertical: 4,
+  },
+  reviewTeeTeamName: { fontSize: 10, fontWeight: '800', letterSpacing: 1, marginBottom: 2 },
+  reviewTeeName:     { fontSize: 13, color: COLORS.text, paddingVertical: 1 },
+  reviewTeeMissing:  { fontSize: 12, color: COLORS.textMuted, fontStyle: 'italic' },
 
   // Privacy
   privacyRow: {
@@ -863,7 +1039,7 @@ const styles = StyleSheet.create({
   countChipTextSelected: { color: COLORS.white },
   sectionSubtext:        { fontSize: 12, color: COLORS.textMuted, lineHeight: 18, marginBottom: SPACING.sm },
 
-  // Course scan
+  // Course scan + manual entry
   scanBtn: {
     flexDirection: 'row', alignItems: 'center', gap: SPACING.sm,
     backgroundColor: COLORS.accentLight, borderRadius: RADIUS.md,
@@ -871,7 +1047,37 @@ const styles = StyleSheet.create({
     padding: SPACING.md,
     ...SHADOW.card,
   },
-  scanBtnText: { flex: 1, fontSize: 15, fontWeight: '700', color: COLORS.accent },
+  scanBtnText: { fontSize: 15, fontWeight: '700', color: COLORS.accent },
+  scanBtnSub:  { fontSize: 11, color: COLORS.textMuted, marginTop: 2 },
+  manualBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: SPACING.sm,
+    backgroundColor: COLORS.surface, borderRadius: RADIUS.md,
+    borderWidth: 1.5, borderColor: COLORS.border,
+    padding: SPACING.md,
+    ...SHADOW.card,
+  },
+  manualBtnText: { fontSize: 15, fontWeight: '700', color: COLORS.text },
+  manualBtnSub:  { fontSize: 11, color: COLORS.textMuted, marginTop: 2 },
+  manualCard: {
+    backgroundColor: COLORS.surface, borderRadius: RADIUS.md,
+    borderWidth: 1.5, borderColor: COLORS.accentBorder,
+    padding: SPACING.md, gap: SPACING.sm,
+    ...SHADOW.card,
+  },
+  manualBtnRow: { flexDirection: 'row', gap: SPACING.sm, marginTop: 4 },
+  manualBtnPrimary: {
+    flex: 1, backgroundColor: COLORS.accent,
+    borderRadius: RADIUS.md, paddingVertical: SPACING.sm + 2,
+    alignItems: 'center',
+  },
+  manualBtnPrimaryText: { color: '#fff', fontWeight: '800', fontSize: 14 },
+  manualBtnSecondary: {
+    flex: 1, backgroundColor: COLORS.surfaceHigh,
+    borderRadius: RADIUS.md, paddingVertical: SPACING.sm + 2,
+    alignItems: 'center', borderWidth: 1, borderColor: COLORS.border,
+  },
+  manualBtnSecondaryText: { color: COLORS.textSecondary, fontWeight: '700', fontSize: 14 },
+  manualHint: { fontSize: 11, color: COLORS.textMuted, marginTop: 4 },
   courseDoneCard: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     backgroundColor: COLORS.accentLight, borderRadius: RADIUS.md,
@@ -885,7 +1091,6 @@ const styles = StyleSheet.create({
   skipBtn:        { alignItems: 'center', padding: SPACING.md },
   skipBtnText:    { fontSize: 14, fontWeight: '600', color: COLORS.textMuted },
 
-  // Match status pill preview
   pillPreview: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     gap: 8, marginBottom: SPACING.md,
@@ -898,7 +1103,6 @@ const styles = StyleSheet.create({
   pillPreviewMiddle: { paddingHorizontal: 10 },
   pillPreviewLabel:  { fontSize: 13, fontWeight: '700', color: COLORS.text },
 
-  // CTA
   ctaRow: { marginTop: SPACING.xl, gap: SPACING.sm },
   nextBtn: {
     backgroundColor: COLORS.accent,
