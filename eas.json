@@ -4,17 +4,29 @@
       "android": {
         "image": "ubuntu-24.04-jdk-17-ndk-r27b-sdk-55",
         "buildType": "app-bundle"
+      },
+      "env": {
+        "EXPO_PUBLIC_SUPABASE_URL": "https://ffkrwdvevjuloyxnliga.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZma3J3ZHZldmp1bG95eG5saWdhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk0NzIxOTgsImV4cCI6MjA5NTA0ODE5OH0.lcUJvWeoHBsK1s3aLyxykqlxk1bIZUr_EBkIxquDRdg"
       }
     },
     "preview": {
       "android": {
         "image": "ubuntu-24.04-jdk-17-ndk-r27b-sdk-55",
         "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_SUPABASE_URL": "https://ffkrwdvevjuloyxnliga.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZma3J3ZHZldmp1bG95eG5saWdhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk0NzIxOTgsImV4cCI6MjA5NTA0ODE5OH0.lcUJvWeoHBsK1s3aLyxykqlxk1bIZUr_EBkIxquDRdg"
       }
     },
     "development": {
       "android": {
         "image": "ubuntu-24.04-jdk-17-ndk-r27b-sdk-55"
+      },
+      "env": {
+        "EXPO_PUBLIC_SUPABASE_URL": "https://ffkrwdvevjuloyxnliga.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZma3J3ZHZldmp1bG95eG5saWdhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk0NzIxOTgsImV4cCI6MjA5NTA0ODE5OH0.lcUJvWeoHBsK1s3aLyxykqlxk1bIZUr_EBkIxquDRdg"
       }
     }
   }
