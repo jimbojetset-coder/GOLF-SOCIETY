@@ -40,9 +40,40 @@ jobs:
       - name: Prebuild native android project
         run: npx expo prebuild --platform android --no-install --clean
 
+      - name: Patch Gradle wrapper to 8.7 (AGP 8.6 compat)
+        working-directory: android
+        run: |
+          sed -i 's|distributionUrl=.*|distributionUrl=https\\://services.gradle.org/distributions/gradle-8.7-all.zip|' gradle/wrapper/gradle-wrapper.properties
+          cat gradle/wrapper/gradle-wrapper.properties
+
+      - name: Patch expo-modules-core for AGP 8.6 publishing
+        run: |
+          FILE=node_modules/expo-modules-core/android/ExpoModulesCorePlugin.gradle
+          # Inject singleVariant("release") {} so components.release exists
+          if ! grep -q 'singleVariant' "$FILE"; then
+            python3 - <<'PY'
+import re, pathlib
+p = pathlib.Path("node_modules/expo-modules-core/android/ExpoModulesCorePlugin.gradle")
+s = p.read_text()
+patch = '''
+android {
+    publishing {
+        singleVariant("release") {
+            withSourcesJar()
+        }
+    }
+}
+'''
+# Insert before the first `publishing {` block
+s = s.replace("publishing {", patch + "\npublishing {", 1)
+p.write_text(s)
+print("Patched ExpoModulesCorePlugin.gradle")
+PY
+          fi
+
       - name: Build release APK
         working-directory: android
-        run: ./gradlew assembleRelease --no-daemon
+        run: ./gradlew assembleRelease --no-daemon --stacktrace
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
