@@ -1,6 +1,4 @@
-<<<<<<< HEAD
-=======
-import { ExpoConfig, ConfigContext } from 'expo/config';
+﻿import { ExpoConfig, ConfigContext } from 'expo/config';
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
@@ -63,4 +61,3 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     },
   },
 });
->>>>>>> 55293ba213f7d43f33f1866138a051a1d377fc8f
