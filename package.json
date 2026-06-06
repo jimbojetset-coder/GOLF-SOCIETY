@@ -11,7 +11,7 @@
   "dependencies": {
     "@expo/vector-icons": "~14.0.4",
     "@react-native-async-storage/async-storage": "1.23.1",
-    "@supabase/Bolt Database-js": "^2.45.0",
+    "@supabase/supabase-js": "^2.45.0",
     "expo": "~52.0.25",
     "expo-asset": "~11.0.5",
     "expo-build-properties": "~0.13.1",
