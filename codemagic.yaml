@@ -8,7 +8,6 @@ workflows:
       node: "20.18.0"
       vars:
         EXPO_PUBLIC_SUPABASE_URL: "[ffkrwdvevjuloyxnliga.supabase.co](https://ffkrwdvevjuloyxnliga.supabase.co)"
-        # Do NOT put the anon key here — add it in Codemagic Environment Variables instead
     scripts:
       - name: Install dependencies
         script: |
