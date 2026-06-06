@@ -3235,6 +3235,13 @@ expo-file-system@~18.0.12:
   dependencies:
     web-streams-polyfill "^3.3.2"
 
+expo-font@^56.0.5:
+  version "56.0.5"
+  resolved "https://registry.npmjs.org/expo-font/-/expo-font-56.0.5.tgz"
+  integrity sha512-WLoDu9hlEgPRKXJRR01HFLJ6Z2tFcORX/WFPRYBndmYc5kjQrFGH/j4BRaF3aBRPyYEAUXiUJybNLXkKCwEXQw==
+  dependencies:
+    fontfaceobserver "^2.1.0"
+
 expo-font@~13.0.4:
   version "13.0.4"
   resolved "https://registry.npmjs.org/expo-font/-/expo-font-13.0.4.tgz"
