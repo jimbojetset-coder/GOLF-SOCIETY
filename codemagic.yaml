@@ -4,16 +4,12 @@ workflows:
     max_build_duration: 60
     instance_type: mac_mini_m1
     environment:
+      java: "17"
+      node: "20.18.0"
       vars:
-        JAVA_VERSION: "17"
-        NODE_VERSION: "20.18.0"
         EXPO_PUBLIC_SUPABASE_URL: "[ffkrwdvevjuloyxnliga.supabase.co](https://ffkrwdvevjuloyxnliga.supabase.co)"
         EXPO_PUBLIC_SUPABASE_ANON_KEY: "YOUR_ANON_KEY_HERE"
     scripts:
-      - name: Set up Environment
-        script: |
-          nvm use $NODE_VERSION
-
       - name: Install dependencies
         script: |
           npm install
