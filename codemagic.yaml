@@ -8,7 +8,7 @@ workflows:
       node: "20.18.0"
       vars:
         EXPO_PUBLIC_SUPABASE_URL: "[ffkrwdvevjuloyxnliga.supabase.co](https://ffkrwdvevjuloyxnliga.supabase.co)"
-        EXPO_PUBLIC_SUPABASE_ANON_KEY: "YOUR_ANON_KEY_HERE"
+        # Do NOT put the anon key here — add it in Codemagic Environment Variables instead
     scripts:
       - name: Install dependencies
         script: |
@@ -17,12 +17,6 @@ workflows:
       - name: Expo Prebuild
         script: |
           npx expo prebuild --platform android --no-install
-
-      - name: Fix Gradle Property Error
-        script: |
-          cd android
-          echo "android.defaults.buildfeatures.buildconfig=true" >> gradle.properties
-          echo "android.nonTransitiveRClass=false" >> gradle.properties
 
       - name: Build Android APK
         script: |
