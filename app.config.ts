@@ -1,3 +1,4 @@
+@'
 import { ExpoConfig, ConfigContext } from 'expo/config';
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
@@ -61,3 +62,4 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     },
   },
 });
+'@ | Out-File -Encoding utf8 app.config.ts
