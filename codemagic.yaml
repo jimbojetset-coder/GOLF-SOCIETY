@@ -6,29 +6,31 @@ workflows:
     environment:
       vars:
         JAVA_VERSION: "17"
-        NODE_VERSION: "20.18.0" # Stable version for SDK 52
-        EXPO_PUBLIC_SUPABASE_URL: "https://ffkrwdvevjuloyxnliga.supabase.co"
+        NODE_VERSION: "20.18.0"
+        EXPO_PUBLIC_SUPABASE_URL: "[ffkrwdvevjuloyxnliga.supabase.co](https://ffkrwdvevjuloyxnliga.supabase.co)"
         EXPO_PUBLIC_SUPABASE_ANON_KEY: "YOUR_ANON_KEY_HERE"
     scripts:
       - name: Set up Environment
         script: |
-          sdk use java 17.0.10-tem
           nvm use $NODE_VERSION
+
       - name: Install dependencies
         script: |
           npm install
+
       - name: Expo Prebuild
         script: |
-          # Crucial: This generates the native folder with the correct plugins
           npx expo prebuild --platform android --no-install
+
       - name: Fix Gradle Property Error
         script: |
-          # This fixes the "SoftwareComponent" error you received
           cd android
           echo "android.defaults.buildfeatures.buildconfig=true" >> gradle.properties
           echo "android.nonTransitiveRClass=false" >> gradle.properties
+
       - name: Build Android APK
         script: |
           cd android && ./gradlew assembleRelease
+
     artifacts:
       - android/app/build/outputs/apk/release/*.apk
