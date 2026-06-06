@@ -1,0 +1,19 @@
+workflows:
+  android-apk-build:
+    name: Android APK Build
+    max_build_duration: 60
+    instance_type: mac_mini_m1
+    environment:
+      vars:
+        EXPO_PUBLIC_SUPABASE_URL: "https://ffkrwdvevjuloyxnliga.supabase.co"
+        EXPO_PUBLIC_SUPABASE_ANON_KEY: "YOUR_ANON_KEY_HERE"
+      node: 20.19.4
+    scripts:
+      - name: Install dependencies
+        script: npm install
+      - name: Expo Prebuild
+        script: npx expo prebuild --platform android
+      - name: Build Android APK
+        script: cd android && ./gradlew assembleRelease
+    artifacts:
+      - android/app/build/outputs/apk/release/*.apk
