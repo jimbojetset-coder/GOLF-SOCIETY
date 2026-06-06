@@ -13,6 +13,10 @@ workflows:
         script: |
           npm install
 
+      - name: Clean previous prebuild
+        script: |
+          rm -rf android ios
+
       - name: Expo Prebuild
         script: |
           npx expo prebuild --platform android --clean --no-install
