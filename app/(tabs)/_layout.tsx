@@ -18,16 +18,12 @@ export default function TabLayout() {
             paddingTop: 6,
             height: 68,
           },
-          tabBarActiveTintColor:   COLORS.accent,
+          tabBarActiveTintColor: COLORS.accent,
           tabBarInactiveTintColor: COLORS.textMuted,
           tabBarLabelStyle: {
             fontSize: 11,
             fontWeight: '600',
             marginTop: 2,
-          },
-          tabBarIndicatorStyle: {
-            backgroundColor: COLORS.accent,
-            height: 2,
           },
         }}
       >
