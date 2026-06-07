@@ -12,17 +12,20 @@ workflows:
     scripts:
       - name: Install dependencies
         script: |
-          npm ci
+          npm install
+
       - name: Expo Prebuild
         script: |
           npx expo prebuild --platform android --clean --no-install
-      - name: Fix Gradle Compatibility
+
+      - name: Fix Gradle
         script: |
           cd android
           ./gradlew wrapper --gradle-version 8.8 --distribution-type all
           echo "android.defaults.buildfeatures.buildconfig=true" >> gradle.properties
           echo "android.nonTransitiveRClass=false" >> gradle.properties
           echo "org.gradle.jvmargs=-Xmx4096m -XX:+HeapDumpOnOutOfMemoryError" >> gradle.properties
+
       - name: Build Android APK
         script: |
           cd android && ./gradlew assembleRelease --stacktrace
