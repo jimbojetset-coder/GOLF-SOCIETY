@@ -16,22 +16,19 @@ workflows:
           nvm use $NODE_VERSION
       - name: Install dependencies
         script: |
-          npm install
+          npm ci  # faster + reproducible
       - name: Expo Prebuild
         script: |
-          # Generates the native Android project structure
-          npx expo prebuild --platform android --no-install
-      - name: Fix Compatibility (Force Gradle 8.8)
+          npx expo prebuild --platform android --clean --no-install
+      - name: Fix Gradle Compatibility
         script: |
-          # Navigate into the generated android folder
           cd android
-          # 1. Downgrade Gradle to 8.8 to fix the 'SoftwareComponent' error
-          ./gradlew wrapper --gradle-version 8.8
-          # 2. Add required build features to properties
+          ./gradlew wrapper --gradle-version 8.8 --distribution-type all
           echo "android.defaults.buildfeatures.buildconfig=true" >> gradle.properties
           echo "android.nonTransitiveRClass=false" >> gradle.properties
+          echo "org.gradle.jvmargs=-Xmx4096m -XX:+HeapDumpOnOutOfMemoryError" >> gradle.properties
       - name: Build Android APK
         script: |
-          cd android && ./gradlew assembleRelease
+          cd android && ./gradlew assembleRelease --stacktrace
     artifacts:
       - android/app/build/outputs/apk/release/*.apk
