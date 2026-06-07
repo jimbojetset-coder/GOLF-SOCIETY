@@ -8,7 +8,7 @@ workflows:
         JAVA_VERSION: "17"
         NODE_VERSION: "20.18.0"
         EXPO_PUBLIC_SUPABASE_URL: "https://ffkrwdvevjuloyxnliga.supabase.co"
-        EXPO_PUBLIC_SUPABASE_ANON_KEY: "YOUR_ANON_KEY_HERE"
+        EXPO_PUBLIC_SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZma3J3ZHZldmp1bG95eG5saWdhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk0NzIxOTgsImV4cCI6MjA5NTA0ODE5OH0.lcUJvWeoHBsK1s3aLyxykqlxk1bIZUr_EBkIxquDRdg"
     scripts:
       - name: Set up Environment
         script: |
@@ -19,15 +19,15 @@ workflows:
           npm install
       - name: Expo Prebuild
         script: |
-          # This generates the native Android folder
+          # Generates the native Android project structure
           npx expo prebuild --platform android --no-install
-      - name: Force Gradle 8.8 Compatibility
+      - name: Fix Compatibility (Force Gradle 8.8)
         script: |
-          # 1. Downgrade Gradle from 8.10 to 8.8 (Fixes the SoftwareComponent error)
+          # Navigate into the generated android folder
           cd android
+          # 1. Downgrade Gradle to 8.8 to fix the 'SoftwareComponent' error
           ./gradlew wrapper --gradle-version 8.8
-          
-          # 2. Fix Build Features
+          # 2. Add required build features to properties
           echo "android.defaults.buildfeatures.buildconfig=true" >> gradle.properties
           echo "android.nonTransitiveRClass=false" >> gradle.properties
       - name: Build Android APK
