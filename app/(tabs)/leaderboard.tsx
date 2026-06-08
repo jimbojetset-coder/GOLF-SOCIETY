@@ -14,7 +14,6 @@ import { COLORS, SPACING, RADIUS, SHADOW, FORMAT_LABELS } from '../../src/consta
 import { parseStoredResult } from '../../src/utils/matchStatus';
 
 // ── Types ─────────────────────────────────────────────────────
-
 interface Competition {
   id: string; name: string;
   team_a_name: string; team_a_colour: string;
@@ -47,12 +46,10 @@ const SESSION_LABELS: Record<string, string> = {
 };
 
 // ── Match Row ─────────────────────────────────────────────────
-
 function MatchRow({ match, comp, hidden }: { match: Match; comp: Competition; hidden: boolean }) {
   const statusInfo = parseStoredResult(match.result, comp.team_a_name, comp.team_b_name);
-  const isLive     = match.status === 'in_progress';
+  const isLive = match.status === 'in_progress';
   const isComplete = match.status === 'complete';
-
   const accentCol = match.winning_team === 'A'
     ? comp.team_a_colour
     : match.winning_team === 'B'
@@ -70,11 +67,8 @@ function MatchRow({ match, comp, hidden }: { match: Match; comp: Competition; hi
 
   return (
     <View style={[styles.matchCard, { backgroundColor: accentBg, borderColor: accentCol + '40' }]}>
-      {/* Left accent bar */}
       <View style={[styles.matchAccentBar, { backgroundColor: accentCol }]} />
-
       <View style={styles.matchContent}>
-        {/* Top row: format + LIVE badge + status */}
         <View style={styles.matchTopRow}>
           <View style={styles.matchTopLeft}>
             {isLive && (
@@ -94,7 +88,6 @@ function MatchRow({ match, comp, hidden }: { match: Match; comp: Competition; hi
           )}
         </View>
 
-        {/* Players row */}
         <View style={styles.matchPlayersRow}>
           <View style={styles.matchTeamSide}>
             <Text style={[styles.matchTeamLabel, { color: comp.team_a_colour }]}>
@@ -104,9 +97,7 @@ function MatchRow({ match, comp, hidden }: { match: Match; comp: Competition; hi
               {teamAPlayers.join(' / ') || '—'}
             </Text>
           </View>
-
           <Text style={styles.matchVs}>vs</Text>
-
           <View style={[styles.matchTeamSide, styles.matchTeamRight]}>
             <Text style={[styles.matchTeamLabel, { color: comp.team_b_colour }]}>
               {comp.team_b_name.toUpperCase()}
@@ -117,7 +108,6 @@ function MatchRow({ match, comp, hidden }: { match: Match; comp: Competition; hi
           </View>
         </View>
 
-        {/* Status */}
         <View style={styles.matchStatusRow}>
           {hidden ? (
             <View style={styles.hiddenPill}>
@@ -126,7 +116,7 @@ function MatchRow({ match, comp, hidden }: { match: Match; comp: Competition; hi
             </View>
           ) : (
             <Text style={[styles.matchStatusText, { color: accentCol }]}>
-              {isLive && match.holes_played > 0 ? `Thru ${match.holes_played}  ·  ` : ''}
+              {isLive && match.holes_played > 0 ? `Thru ${match.holes_played} · ` : ''}
               {statusInfo.label || (match.status === 'pending' ? 'Not started' : '')}
             </Text>
           )}
@@ -137,29 +127,35 @@ function MatchRow({ match, comp, hidden }: { match: Match; comp: Competition; hi
 }
 
 // ── Main Component ────────────────────────────────────────────
-
 export default function LeaderboardTab() {
   const { competitionId } = useLocalSearchParams<{ competitionId?: string }>();
-  const { user }  = useAuth();
-  const router    = useRouter();
+  const { user } = useAuth();
+  const router = useRouter();
 
   const [competition, setCompetition] = useState<Competition | null>(null);
-  const [matches,     setMatches]     = useState<Match[]>([]);
-  const [highlights,  setHighlights]  = useState<HighlightEvent[]>([]);
-  const [loading,     setLoading]     = useState(true);
-  const [refreshing,  setRefreshing]  = useState(false);
-  const [hlIdx,       setHlIdx]       = useState(0);
+  const [matches, setMatches] = useState<Match[]>([]);
+  const [highlights, setHighlights] = useState<HighlightEvent[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [hlIdx, setHlIdx] = useState(0);
 
-  const isCreator  = competition?.created_by_user_id === user?.id;
+  const isCreator = competition?.created_by_user_id === user?.id;
   const compClosed = competition?.status === 'closed' || competition?.status === 'history';
 
   const load = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true); else setLoading(true);
+
     let q = supabase.from('competitions').select('*');
     if (competitionId) q = q.eq('id', competitionId);
     else q = q.eq('status', 'active').order('created_at', { ascending: false }).limit(1);
+
     const { data: compData } = await q.single();
-    if (!compData) { setLoading(false); setRefreshing(false); return; }
+    if (!compData) {
+      setLoading(false);
+      setRefreshing(false);
+      return;
+    }
+
     setCompetition(compData);
 
     const { data: matchData } = await supabase
@@ -167,6 +163,7 @@ export default function LeaderboardTab() {
       .select('*, match_players(team, players(name))')
       .eq('competition_id', compData.id)
       .order('match_number');
+
     setMatches((matchData ?? []).map((m: any) => ({
       ...m,
       playerNames: (m.match_players ?? []).map((mp: any) => mp.players?.name ?? ''),
@@ -179,27 +176,40 @@ export default function LeaderboardTab() {
       .in('event_type', ['hole_in_one', 'albatross', 'eagle', 'birdie'])
       .order('timestamp', { ascending: false })
       .limit(12);
+
     setHighlights((hlData ?? []).map((h: any) => ({ ...h, player_name: h.players?.name })));
 
-    setLoading(false); setRefreshing(false);
+    setLoading(false);
+    setRefreshing(false);
   }, [competitionId]);
 
+  // Improved Realtime Subscription
   useEffect(() => {
     load();
 
-    // Realtime subscription — reloads whenever a match or competition row changes.
-    // This gives the "live" feel without manual pull-to-refresh.
     const channel = supabase
       .channel('leaderboard-live')
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'matches' }, () => {
-        load();
-      })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'competitions' }, () => {
-        load();
-      })
-      .subscribe();
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'matches' },
+        () => load()
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'competitions' },
+        () => load()
+      )
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('✅ Leaderboard realtime subscribed');
+        } else if (status === 'CHANNEL_ERROR') {
+          console.error('❌ Realtime channel error');
+        }
+      });
 
-    return () => { supabase.removeChannel(channel); };
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [load]);
 
   useEffect(() => {
@@ -212,6 +222,7 @@ export default function LeaderboardTab() {
     if (match.status !== 'complete') return false;
     if (isCreator || compClosed) return false;
     if (!competition || competition.hide_last_n_results === 0) return false;
+
     const sorted = [...completed].sort((a, b) => a.match_number - b.match_number);
     const hiddenSet = new Set(sorted.slice(Math.max(0, sorted.length - competition.hide_last_n_results)).map(m => m.id));
     return hiddenSet.has(match.id);
@@ -231,7 +242,6 @@ export default function LeaderboardTab() {
   };
 
   // ── Loading / empty states ─────────────────────────────────
-
   if (loading) return (
     <SafeAreaView style={styles.container}>
       <ActivityIndicator color={COLORS.accent} style={{ marginTop: 80 }} />
@@ -260,8 +270,10 @@ export default function LeaderboardTab() {
 
   // ── Group matches by session_date + session ────────────────
   const completed = matches.filter(m => m.status === 'complete');
+
   type Session = { key: string; label: string; matches: Match[] };
   const sessionMap = new Map<string, Session>();
+
   for (const m of matches) {
     const key = `${m.session_date ?? 'tbd'}_${m.session ?? ''}`;
     if (!sessionMap.has(key)) {
@@ -269,12 +281,12 @@ export default function LeaderboardTab() {
         ? parseLocalDate(m.session_date).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' })
         : 'Unscheduled';
       const sesLabel = SESSION_LABELS[m.session ?? ''] ?? (m.session ?? '');
-      sessionMap.set(key, { key, label: `${dateLabel}${sesLabel ? `  ·  ${sesLabel}` : ''}`, matches: [] });
+      sessionMap.set(key, { key, label: `${dateLabel}${sesLabel ? ` · ${sesLabel}` : ''}`, matches: [] });
     }
     sessionMap.get(key)!.matches.push(m);
   }
-  const sessions = [...sessionMap.values()];
 
+  const sessions = [...sessionMap.values()];
   const totalA = completed.reduce((s, m) => s + (m.points_a ?? 0), 0);
   const totalB = completed.reduce((s, m) => s + (m.points_b ?? 0), 0);
   const hl = highlights[hlIdx];
@@ -287,7 +299,7 @@ export default function LeaderboardTab() {
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
       >
-        {/* ── Team Score Header ── */}
+        {/* Team Score Header */}
         <View style={styles.scoreHeader}>
           <View style={[styles.teamBlock, { backgroundColor: competition.team_a_colour + '12', borderColor: competition.team_a_colour + '50' }]}>
             <Text style={[styles.teamName, { color: competition.team_a_colour }]}>{competition.team_a_name.toUpperCase()}</Text>
@@ -303,7 +315,7 @@ export default function LeaderboardTab() {
           </View>
         </View>
 
-        {/* ── Highlights ticker ── */}
+        {/* Highlights ticker */}
         {hl && (
           <View style={styles.hlBanner}>
             <Text style={styles.hlEmoji}>{HIGHLIGHT_EMOJI[hl.event_type] ?? '⭐'}</Text>
@@ -311,11 +323,11 @@ export default function LeaderboardTab() {
               <Text style={{ fontWeight: '800', color: hl.team === 'A' ? competition.team_a_colour : competition.team_b_colour }}>
                 {hl.player_name}
               </Text>
-              {'  '}
+              {' '}
               <Text style={{ fontWeight: '600', color: COLORS.text }}>
                 {hl.event_type.replace('_', ' ')}
               </Text>
-              {'  ·  Hole '}{hl.hole_number}
+              {' · Hole '}{hl.hole_number}
             </Text>
             <View style={styles.hlDots}>
               {highlights.map((_, i) => (
@@ -325,7 +337,7 @@ export default function LeaderboardTab() {
           </View>
         )}
 
-        {/* ── Sessions ── */}
+        {/* Sessions */}
         {sessions.map(session => (
           <View key={session.key}>
             <Text style={styles.sessionLabel}>{session.label.toUpperCase()}</Text>
@@ -340,7 +352,7 @@ export default function LeaderboardTab() {
           </View>
         ))}
 
-        {/* ── Creator controls ── */}
+        {/* Creator controls */}
         {isCreator && !compClosed && (
           <TouchableOpacity style={styles.closeBtn} onPress={closeComp} activeOpacity={0.8}>
             <Text style={styles.closeBtnText}>Close Competition & Reveal Results</Text>
@@ -354,12 +366,10 @@ export default function LeaderboardTab() {
 }
 
 // ── Styles ────────────────────────────────────────────────────
-
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
-  scroll:    { padding: SPACING.md, gap: SPACING.sm },
+  scroll: { padding: SPACING.md, gap: SPACING.sm },
 
-  // Score header
   scoreHeader: {
     flexDirection: 'row', alignItems: 'stretch',
     gap: SPACING.sm, marginBottom: SPACING.sm,
@@ -370,13 +380,12 @@ const styles = StyleSheet.create({
     ...SHADOW.card,
   },
   teamBlockRight: {},
-  teamName:   { fontSize: 11, fontWeight: '800', letterSpacing: 1, marginBottom: 4 },
+  teamName: { fontSize: 11, fontWeight: '800', letterSpacing: 1, marginBottom: 4 },
   teamPoints: { fontSize: 44, fontWeight: '800', lineHeight: 52 },
   scoreCenter: { justifyContent: 'center', alignItems: 'center', paddingHorizontal: 4 },
   scoreSeparator: { fontSize: 24, fontWeight: '300', color: COLORS.border },
-  scoreSubtitle:  { fontSize: 10, color: COLORS.textMuted, marginTop: 4 },
+  scoreSubtitle: { fontSize: 10, color: COLORS.textMuted, marginTop: 4 },
 
-  // Highlights
   hlBanner: {
     flexDirection: 'row', alignItems: 'center',
     backgroundColor: COLORS.accent,
@@ -387,12 +396,11 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.sm,
   },
   hlEmoji: { fontSize: 18 },
-  hlText:  { flex: 1, fontSize: 13, fontWeight: '500', color: COLORS.white },
-  hlDots:  { flexDirection: 'row', gap: 4 },
-  hlDot:   { width: 5, height: 5, borderRadius: RADIUS.full, backgroundColor: COLORS.white + '60' },
+  hlText: { flex: 1, fontSize: 13, fontWeight: '500', color: COLORS.white },
+  hlDots: { flexDirection: 'row', gap: 4 },
+  hlDot: { width: 5, height: 5, borderRadius: RADIUS.full, backgroundColor: COLORS.white + '60' },
   hlDotActive: { backgroundColor: COLORS.white },
 
-  // Session
   sessionLabel: {
     fontSize: 10, fontWeight: '700', letterSpacing: 1.5,
     color: COLORS.textMuted,
@@ -400,35 +408,30 @@ const styles = StyleSheet.create({
     marginLeft: 4,
   },
 
-  // Match card
   matchCard: {
     flexDirection: 'row', borderWidth: 1,
     borderRadius: RADIUS.lg, overflow: 'hidden',
     marginBottom: SPACING.sm,
     ...SHADOW.card,
   },
-  matchAccentBar:  { width: 4 },
-  matchContent:    { flex: 1, padding: SPACING.md, gap: 8 },
-  matchTopRow:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  matchTopLeft:    { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
-  matchFormat:     { fontSize: 11, fontWeight: '600', color: COLORS.textMuted, letterSpacing: 0.5 },
-
-  liveBadge:     { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: COLORS.accentLight, borderRadius: RADIUS.full, paddingHorizontal: 8, paddingVertical: 3 },
-  liveDot:       { width: 6, height: 6, borderRadius: RADIUS.full, backgroundColor: COLORS.accent },
+  matchAccentBar: { width: 4 },
+  matchContent: { flex: 1, padding: SPACING.md, gap: 8 },
+  matchTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  matchTopLeft: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
+  matchFormat: { fontSize: 11, fontWeight: '600', color: COLORS.textMuted, letterSpacing: 0.5 },
+  liveBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: COLORS.accentLight, borderRadius: RADIUS.full, paddingHorizontal: 8, paddingVertical: 3 },
+  liveDot: { width: 6, height: 6, borderRadius: RADIUS.full, backgroundColor: COLORS.accent },
   liveBadgeText: { fontSize: 9, fontWeight: '800', color: COLORS.accent, letterSpacing: 1 },
-
-  ptsBadge:     { borderWidth: 1, borderRadius: RADIUS.full, paddingHorizontal: 10, paddingVertical: 3 },
+  ptsBadge: { borderWidth: 1, borderRadius: RADIUS.full, paddingHorizontal: 10, paddingVertical: 3 },
   ptsBadgeText: { fontSize: 11, fontWeight: '700' },
-
   matchPlayersRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
-  matchTeamSide:   { flex: 1 },
-  matchTeamRight:  { alignItems: 'flex-end' },
-  matchTeamLabel:  { fontSize: 9, fontWeight: '800', letterSpacing: 1, marginBottom: 2 },
-  matchPlayerNames:{ fontSize: 13, fontWeight: '600', color: COLORS.text },
-  matchVs:         { fontSize: 11, color: COLORS.textMuted, fontWeight: '500' },
-
+  matchTeamSide: { flex: 1 },
+  matchTeamRight: { alignItems: 'flex-end' },
+  matchTeamLabel: { fontSize: 9, fontWeight: '800', letterSpacing: 1, marginBottom: 2 },
+  matchPlayerNames: { fontSize: 13, fontWeight: '600', color: COLORS.text },
+  matchVs: { fontSize: 11, color: COLORS.textMuted, fontWeight: '500' },
   matchStatusRow: { flexDirection: 'row', alignItems: 'center' },
-  matchStatusText:{ fontSize: 13, fontWeight: '700' },
+  matchStatusText: { fontSize: 13, fontWeight: '700' },
   hiddenPill: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
     backgroundColor: COLORS.surfaceHigh, borderRadius: RADIUS.full,
@@ -436,7 +439,6 @@ const styles = StyleSheet.create({
   },
   hiddenText: { fontSize: 11, color: COLORS.textMuted },
 
-  // Close button
   closeBtn: {
     marginTop: SPACING.lg,
     borderWidth: 1.5, borderColor: COLORS.dangerBorder,
@@ -445,12 +447,12 @@ const styles = StyleSheet.create({
   },
   closeBtnText: { fontSize: 14, fontWeight: '700', color: COLORS.danger },
 
-  // Empty / locked states
-  empty:      { flex: 1, alignItems: 'center', justifyContent: 'center', padding: SPACING.xl },
+  empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: SPACING.xl },
   emptyEmoji: { fontSize: 48, marginBottom: SPACING.md },
   emptyTitle: { fontSize: 20, fontWeight: '700', color: COLORS.text, marginBottom: SPACING.sm },
   emptySubtitle: { fontSize: 14, color: COLORS.textMuted, textAlign: 'center' },
-  locked:     { flex: 1, alignItems: 'center', justifyContent: 'center', padding: SPACING.xl },
-  lockedTitle:{ fontSize: 20, fontWeight: '700', color: COLORS.text, marginTop: SPACING.md, marginBottom: SPACING.sm },
-  lockedSub:  { fontSize: 14, color: COLORS.textMuted, textAlign: 'center' },
+
+  locked: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: SPACING.xl },
+  lockedTitle: { fontSize: 20, fontWeight: '700', color: COLORS.text, marginTop: SPACING.md, marginBottom: SPACING.sm },
+  lockedSub: { fontSize: 14, color: COLORS.textMuted, textAlign: 'center' },
 });
