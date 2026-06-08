@@ -14,16 +14,16 @@ export default function TabLayout() {
             backgroundColor: COLORS.white,
             borderTopColor: COLORS.border,
             borderTopWidth: 1,
-            paddingBottom: 6,
-            paddingTop: 6,
-            height: 68,
+            paddingBottom: 8,        // increased
+            paddingTop: 8,           // increased
+            height: 72,              // increased height
           },
           tabBarActiveTintColor: COLORS.accent,
           tabBarInactiveTintColor: COLORS.textMuted,
           tabBarLabelStyle: {
             fontSize: 11,
             fontWeight: '600',
-            marginTop: 2,
+            marginTop: 4,            // moved label up a bit
           },
         }}
       >
