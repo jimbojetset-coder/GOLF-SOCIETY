@@ -54,7 +54,7 @@ export default function NewCompetitionScreen() {
   const [step, setStep] = useState<Step>('details');
   const [saving, setSaving] = useState(false);
 
-  // ── Details ──────────────────────────────────────────────────
+  // Details
   const [name, setName] = useState('');
   const [notes, setNotes] = useState('');
   const [heroImageUrl, setHeroImageUrl] = useState<string | null>(null);
@@ -99,7 +99,7 @@ export default function NewCompetitionScreen() {
   const removePlayer = (id: string) =>
     setPlayers(prev => prev.filter(p => p.id !== id));
 
-  // Matches - FIXED
+  // Matches - Fixed date syncing
   const [matches, setMatches] = useState<MatchDraft[]>([
     { 
       id: uid(), 
@@ -131,7 +131,6 @@ export default function NewCompetitionScreen() {
   const removeMatch = (id: string) =>
     setMatches(prev => prev.filter(m => m.id !== id));
 
-  // Manual course entry
   const saveManualCourse = async () => {
     if (!user) return;
     const trimmed = manualName.trim();
@@ -180,7 +179,6 @@ export default function NewCompetitionScreen() {
     }
   };
 
-  // Validation
   const canProceed = (): boolean => {
     switch (step) {
       case 'details': return name.trim().length > 0;
@@ -211,7 +209,6 @@ export default function NewCompetitionScreen() {
     }
   };
 
-  // Create Competition
   const handleCreate = async () => {
     if (!user) return;
     setSaving(true);
@@ -241,15 +238,14 @@ export default function NewCompetitionScreen() {
         handicap_allowance: handicapAllowance,
       };
 
-      const { data: comp, error: compErr } = await supabase
+      const { data: comp, error } = await supabase
         .from('competitions')
         .insert(baseCompetition)
         .select()
         .single();
 
-      if (compErr || !comp) throw compErr ?? new Error('Failed to create competition');
+      if (error || !comp) throw error;
 
-      // ... (rest of player/match creation remains the same)
       router.replace(`/(tabs)/leaderboard?competitionId=${comp.id}`);
     } catch (err: any) {
       Alert.alert('Error', err?.message ?? 'Something went wrong');
@@ -267,10 +263,7 @@ export default function NewCompetitionScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.progressBar}>
         {STEPS.map((s, i) => (
-          <View
-            key={s}
-            style={[styles.progressStep, i <= stepIndex && styles.progressStepDone]}
-          />
+          <View key={s} style={[styles.progressStep, i <= stepIndex && styles.progressStepDone]} />
         ))}
       </View>
 
@@ -283,7 +276,7 @@ export default function NewCompetitionScreen() {
             <Text style={styles.stepTitle}>{STEP_LABELS[step]}</Text>
           </View>
 
-          {/* Matches Step - Fixed */}
+          {/* FIXED Matches Step */}
           {step === 'matches' && (
             <View style={styles.section}>
               <Text style={styles.sectionHint}>
@@ -312,7 +305,6 @@ export default function NewCompetitionScreen() {
             </View>
           )}
 
-          {/* CTA */}
           <View style={styles.ctaRow}>
             {step !== 'review' ? (
               <TouchableOpacity
@@ -365,7 +357,6 @@ const styles = StyleSheet.create({
   stepTitle: { fontSize: 22, fontWeight: '800', color: COLORS.text, letterSpacing: -0.3 },
   section: { gap: SPACING.md },
   sectionHint: { fontSize: 13, color: COLORS.textMuted, lineHeight: 19 },
-  // ... (add the rest of your styles from the original file here)
   ctaRow: { marginTop: SPACING.xl, gap: SPACING.sm },
   nextBtn: {
     backgroundColor: COLORS.accent,
