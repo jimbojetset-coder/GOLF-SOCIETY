@@ -55,9 +55,13 @@ export default function CompetitionTab() {
   const renderCard = ({ item }: { item: Competition }) => {
     const isOwner = item.created_by_user_id === user?.id;
     const cfg = STATUS_CONFIG[item.status] ?? STATUS_CONFIG.active;
+
     const dateLabel = (item.start_date ?? item.event_date)
-      ? parseLocalDate(item.start_date ?? item.event_date!).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
-      : null;
+      ? parseLocalDate(item.start_date ?? item.event_date!).toLocaleDateString('en-GB', { 
+          day: 'numeric', 
+          month: 'short' 
+        })
+      : 'No date';
 
     return (
       <TouchableOpacity
@@ -72,36 +76,19 @@ export default function CompetitionTab() {
           </View>
         </View>
 
-        <View style={styles.teamsRow}>
-          <View style={styles.teamSide}>
-            <Text style={[styles.teamLabel, { color: item.team_a_colour }]}>
-              {item.team_a_name}
-            </Text>
-            <Text style={[styles.teamScore, { color: item.team_a_colour }]}>
-              {item.team_a_points ?? '—'}
-            </Text>
-          </View>
-          <View style={styles.scoreDivider}>
-            <Text style={styles.scoreDash}>—</Text>
-          </View>
-          <View style={[styles.teamSide, styles.teamSideRight]}>
-            <Text style={[styles.teamLabel, { color: item.team_b_colour }]}>
-              {item.team_b_name}
-            </Text>
-            <Text style={[styles.teamScore, { color: item.team_b_colour }]}>
-              {item.team_b_points ?? '—'}
-            </Text>
-          </View>
+        {/* Compact 1-line date + teams */}
+        <View style={styles.compactInfo}>
+          <Text style={styles.dateText}>{dateLabel}</Text>
+          <Text style={styles.teamsText}>
+            {item.team_a_name} vs {item.team_b_name}
+          </Text>
         </View>
 
         <View style={styles.cardFooter}>
-          {dateLabel && <Text style={styles.cardMeta}>{dateLabel}</Text>}
-          <View style={styles.cardFooterRight}>
-            {isOwner && item.share_token && (
-              <ShareCompetitionButton competitionName={item.name} shareToken={item.share_token} />
-            )}
-            <Ionicons name="chevron-forward" size={16} color={COLORS.textMuted} />
-          </View>
+          {isOwner && item.share_token && (
+            <ShareCompetitionButton competitionName={item.name} shareToken={item.share_token} />
+          )}
+          <Ionicons name="chevron-forward" size={18} color={COLORS.textMuted} />
         </View>
       </TouchableOpacity>
     );
@@ -112,12 +99,10 @@ export default function CompetitionTab() {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.background} />
-      
-      {/* Header - No + button anymore */}
+     
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Competitions</Text>
       </View>
-
       <View style={styles.divider} />
 
       {loading ? (
@@ -158,33 +143,66 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 30, fontWeight: '800', color: COLORS.text, letterSpacing: -0.5 },
   divider: { height: 1, backgroundColor: COLORS.border, marginHorizontal: SPACING.md },
   list: { padding: SPACING.md, gap: SPACING.sm },
+
   card: {
     backgroundColor: COLORS.surface,
     borderRadius: RADIUS.xl,
-    borderWidth: 1, borderColor: COLORS.border,
+    borderWidth: 1, 
+    borderColor: COLORS.border,
     padding: SPACING.md,
-    gap: SPACING.sm,
     ...SHADOW.card,
   },
-  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  cardTitle: { fontSize: 17, fontWeight: '700', color: COLORS.text, flex: 1, marginRight: SPACING.sm },
-  statusPill: { borderRadius: RADIUS.full, paddingHorizontal: 10, paddingVertical: 4 },
-  statusPillText: { fontSize: 10, fontWeight: '800', letterSpacing: 0.5 },
-  teamsRow: {
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: COLORS.surfaceHigh,
-    borderRadius: RADIUS.md, padding: SPACING.sm + 2,
+  cardHeader: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    alignItems: 'center',
+    marginBottom: 8,
   },
-  teamSide: { flex: 1 },
-  teamSideRight: { alignItems: 'flex-end' },
-  teamLabel: { fontSize: 12, fontWeight: '700', letterSpacing: 0.3, marginBottom: 2 },
-  teamScore: { fontSize: 26, fontWeight: '800', lineHeight: 30 },
-  scoreDivider: { paddingHorizontal: SPACING.sm },
-  scoreDash: { fontSize: 20, fontWeight: '300', color: COLORS.border },
-  cardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  cardFooterRight: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
-  cardMeta: { fontSize: 12, color: COLORS.textMuted },
-  empty: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: SPACING.xl, gap: SPACING.sm },
+  cardTitle: { 
+    fontSize: 17, 
+    fontWeight: '700', 
+    color: COLORS.text, 
+    flex: 1, 
+    marginRight: SPACING.sm 
+  },
+  statusPill: { 
+    borderRadius: RADIUS.full, 
+    paddingHorizontal: 10, 
+    paddingVertical: 4 
+  },
+  statusPillText: { 
+    fontSize: 10, 
+    fontWeight: '800', 
+    letterSpacing: 0.5 
+  },
+
+  // Compact row
+  compactInfo: {
+    marginBottom: 12,
+  },
+  dateText: {
+    fontSize: 14,
+    color: COLORS.textMuted,
+    fontWeight: '600',
+  },
+  teamsText: {
+    fontSize: 15,
+    color: COLORS.text,
+    marginTop: 2,
+  },
+
+  cardFooter: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    alignItems: 'center' 
+  },
+  empty: { 
+    flex: 1, 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    padding: SPACING.xl, 
+    gap: SPACING.sm 
+  },
   emptyEmoji: { fontSize: 56, marginBottom: SPACING.sm },
   emptyTitle: { fontSize: 20, fontWeight: '700', color: COLORS.text },
   emptySubtitle: { fontSize: 14, color: COLORS.textMuted, textAlign: 'center' },
@@ -192,7 +210,8 @@ const styles = StyleSheet.create({
     marginTop: SPACING.md,
     backgroundColor: COLORS.accent,
     borderRadius: RADIUS.lg,
-    paddingVertical: SPACING.md, paddingHorizontal: SPACING.xl,
+    paddingVertical: SPACING.md, 
+    paddingHorizontal: SPACING.xl,
     ...SHADOW.fab,
   },
   emptyBtnText: { fontSize: 15, fontWeight: '700', color: COLORS.white },
