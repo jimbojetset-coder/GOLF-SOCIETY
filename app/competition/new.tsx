@@ -99,7 +99,7 @@ export default function NewCompetitionScreen() {
   const removePlayer = (id: string) =>
     setPlayers(prev => prev.filter(p => p.id !== id));
 
-  // Matches - Fixed date syncing
+  // Matches
   const [matches, setMatches] = useState<MatchDraft[]>([
     { 
       id: uid(), 
@@ -276,7 +276,7 @@ export default function NewCompetitionScreen() {
             <Text style={styles.stepTitle}>{STEP_LABELS[step]}</Text>
           </View>
 
-          {/* FIXED Matches Step */}
+          {/* Matches Step */}
           {step === 'matches' && (
             <View style={styles.section}>
               <Text style={styles.sectionHint}>
