@@ -183,38 +183,22 @@ export default function LeaderboardTab() {
     setRefreshing(false);
   }, [competitionId]);
 
-  // Improved Realtime Subscription
+  // Realtime
   useEffect(() => {
     load();
-
     const channel = supabase
       .channel('leaderboard-live')
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'matches' },
-        () => load()
-      )
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'competitions' },
-        () => load()
-      )
-      .subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          console.log('✅ Leaderboard realtime subscribed');
-        } else if (status === 'CHANNEL_ERROR') {
-          console.error('❌ Realtime channel error');
-        }
-      });
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'matches' }, () => load())
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'competitions' }, () => load())
+      .subscribe();
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    return () => supabase.removeChannel(channel);
   }, [load]);
 
+  // Highlights rotation
   useEffect(() => {
     if (highlights.length < 2) return;
-    const t = setInterval(() => setHlIdx(i => (i + 1) % highlights.length), 4000);
+    const t = setInterval(() => setHlIdx(i => (i + 1) % highlights.length), 4500);
     return () => clearInterval(t);
   }, [highlights]);
 
@@ -241,7 +225,6 @@ export default function LeaderboardTab() {
       }]);
   };
 
-  // ── Loading / empty states ─────────────────────────────────
   if (loading) return (
     <SafeAreaView style={styles.container}>
       <ActivityIndicator color={COLORS.accent} style={{ marginTop: 80 }} />
@@ -268,9 +251,8 @@ export default function LeaderboardTab() {
     </SafeAreaView>
   );
 
-  // ── Group matches by session_date + session ────────────────
+  // Group matches
   const completed = matches.filter(m => m.status === 'complete');
-
   type Session = { key: string; label: string; matches: Match[] };
   const sessionMap = new Map<string, Session>();
 
@@ -294,37 +276,39 @@ export default function LeaderboardTab() {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.background} />
+
       <ScrollView
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={COLORS.accent} />}
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
       >
-        {/* Team Score Header */}
+        {/* Improved Team Score Header */}
         <View style={styles.scoreHeader}>
           <View style={[styles.teamBlock, { backgroundColor: competition.team_a_colour + '12', borderColor: competition.team_a_colour + '50' }]}>
             <Text style={[styles.teamName, { color: competition.team_a_colour }]}>{competition.team_a_name.toUpperCase()}</Text>
             <Text style={[styles.teamPoints, { color: competition.team_a_colour }]}>{totalA}</Text>
           </View>
+
           <View style={styles.scoreCenter}>
-            <Text style={styles.scoreSeparator}>—</Text>
-            <Text style={styles.scoreSubtitle}>{completed.length} of {matches.length} done</Text>
+            <Text style={styles.scoreSeparator}>VS</Text>
+            <Text style={styles.scoreSubtitle}>{completed.length} of {matches.length} matches</Text>
           </View>
+
           <View style={[styles.teamBlock, styles.teamBlockRight, { backgroundColor: competition.team_b_colour + '12', borderColor: competition.team_b_colour + '50' }]}>
             <Text style={[styles.teamName, { color: competition.team_b_colour }]}>{competition.team_b_name.toUpperCase()}</Text>
             <Text style={[styles.teamPoints, { color: competition.team_b_colour }]}>{totalB}</Text>
           </View>
         </View>
 
-        {/* Highlights ticker */}
+        {/* Improved Highlights Banner */}
         {hl && (
           <View style={styles.hlBanner}>
             <Text style={styles.hlEmoji}>{HIGHLIGHT_EMOJI[hl.event_type] ?? '⭐'}</Text>
             <Text style={styles.hlText} numberOfLines={1}>
               <Text style={{ fontWeight: '800', color: hl.team === 'A' ? competition.team_a_colour : competition.team_b_colour }}>
                 {hl.player_name}
-              </Text>
-              {' '}
-              <Text style={{ fontWeight: '600', color: COLORS.text }}>
+              </Text>{' '}
+              <Text style={{ fontWeight: '600' }}>
                 {hl.event_type.replace('_', ' ')}
               </Text>
               {' · Hole '}{hl.hole_number}
@@ -352,14 +336,13 @@ export default function LeaderboardTab() {
           </View>
         ))}
 
-        {/* Creator controls */}
         {isCreator && !compClosed && (
           <TouchableOpacity style={styles.closeBtn} onPress={closeComp} activeOpacity={0.8}>
             <Text style={styles.closeBtnText}>Close Competition & Reveal Results</Text>
           </TouchableOpacity>
         )}
 
-        <View style={{ height: 32 }} />
+        <View style={{ height: 40 }} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -368,49 +351,63 @@ export default function LeaderboardTab() {
 // ── Styles ────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
-  scroll: { padding: SPACING.md, gap: SPACING.sm },
+  scroll: { padding: SPACING.md, paddingTop: SPACING.sm, gap: SPACING.sm },
 
+  /* Header Improvements */
   scoreHeader: {
-    flexDirection: 'row', alignItems: 'stretch',
-    gap: SPACING.sm, marginBottom: SPACING.sm,
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    gap: SPACING.sm,
+    marginBottom: SPACING.lg,
   },
   teamBlock: {
-    flex: 1, borderWidth: 1.5, borderRadius: RADIUS.lg,
-    padding: SPACING.md, alignItems: 'center',
+    flex: 1,
+    borderWidth: 1.5,
+    borderRadius: RADIUS.lg,
+    padding: SPACING.md,
+    alignItems: 'center',
     ...SHADOW.card,
   },
   teamBlockRight: {},
   teamName: { fontSize: 11, fontWeight: '800', letterSpacing: 1, marginBottom: 4 },
-  teamPoints: { fontSize: 44, fontWeight: '800', lineHeight: 52 },
-  scoreCenter: { justifyContent: 'center', alignItems: 'center', paddingHorizontal: 4 },
-  scoreSeparator: { fontSize: 24, fontWeight: '300', color: COLORS.border },
-  scoreSubtitle: { fontSize: 10, color: COLORS.textMuted, marginTop: 4 },
+  teamPoints: { fontSize: 48, fontWeight: '800', lineHeight: 52 },
+  scoreCenter: { justifyContent: 'center', alignItems: 'center', paddingHorizontal: 8 },
+  scoreSeparator: { fontSize: 22, fontWeight: '300', color: COLORS.textMuted },
+  scoreSubtitle: { fontSize: 11, color: COLORS.textMuted, marginTop: 4 },
 
+  /* Highlights Banner Improvements */
   hlBanner: {
-    flexDirection: 'row', alignItems: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: COLORS.accent,
-    borderRadius: RADIUS.md,
+    borderRadius: RADIUS.lg,
     paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm + 2,
+    paddingVertical: SPACING.md - 2,
     gap: SPACING.sm,
-    marginBottom: SPACING.sm,
+    marginBottom: SPACING.lg,
+    ...SHADOW.card,
   },
-  hlEmoji: { fontSize: 18 },
-  hlText: { flex: 1, fontSize: 13, fontWeight: '500', color: COLORS.white },
-  hlDots: { flexDirection: 'row', gap: 4 },
-  hlDot: { width: 5, height: 5, borderRadius: RADIUS.full, backgroundColor: COLORS.white + '60' },
-  hlDotActive: { backgroundColor: COLORS.white },
+  hlEmoji: { fontSize: 22 },
+  hlText: { flex: 1, fontSize: 14, color: COLORS.white, lineHeight: 18 },
+  hlDots: { flexDirection: 'row', gap: 5 },
+  hlDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: COLORS.white + '50' },
+  hlDotActive: { backgroundColor: COLORS.white, width: 7, height: 7 },
 
   sessionLabel: {
-    fontSize: 10, fontWeight: '700', letterSpacing: 1.5,
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1.5,
     color: COLORS.textMuted,
-    marginTop: SPACING.md, marginBottom: SPACING.xs,
+    marginTop: SPACING.md,
+    marginBottom: SPACING.xs,
     marginLeft: 4,
   },
 
   matchCard: {
-    flexDirection: 'row', borderWidth: 1,
-    borderRadius: RADIUS.lg, overflow: 'hidden',
+    flexDirection: 'row',
+    borderWidth: 1,
+    borderRadius: RADIUS.lg,
+    overflow: 'hidden',
     marginBottom: SPACING.sm,
     ...SHADOW.card,
   },
@@ -433,17 +430,24 @@ const styles = StyleSheet.create({
   matchStatusRow: { flexDirection: 'row', alignItems: 'center' },
   matchStatusText: { fontSize: 13, fontWeight: '700' },
   hiddenPill: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    backgroundColor: COLORS.surfaceHigh, borderRadius: RADIUS.full,
-    paddingHorizontal: 10, paddingVertical: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: COLORS.surfaceHigh,
+    borderRadius: RADIUS.full,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
   },
   hiddenText: { fontSize: 11, color: COLORS.textMuted },
 
   closeBtn: {
     marginTop: SPACING.lg,
-    borderWidth: 1.5, borderColor: COLORS.dangerBorder,
-    borderRadius: RADIUS.lg, paddingVertical: SPACING.md,
-    alignItems: 'center', backgroundColor: COLORS.dangerLight,
+    borderWidth: 1.5,
+    borderColor: COLORS.dangerBorder,
+    borderRadius: RADIUS.lg,
+    paddingVertical: SPACING.md,
+    alignItems: 'center',
+    backgroundColor: COLORS.dangerLight,
   },
   closeBtnText: { fontSize: 14, fontWeight: '700', color: COLORS.danger },
 
