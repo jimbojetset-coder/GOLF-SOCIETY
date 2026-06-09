@@ -23,7 +23,6 @@ const uid = () => Math.random().toString(36).slice(2, 10) + Math.random().toStri
 
 // ── Steps ─────────────────────────────────────────────────────
 type Step = 'details' | 'course' | 'teams' | 'dates' | 'players' | 'matches' | 'review';
-
 const STEPS: Step[] = ['details', 'course', 'teams', 'dates', 'players', 'matches', 'review'];
 
 const STEP_LABELS: Record<Step, string> = {
@@ -126,7 +125,6 @@ export default function NewCompetitionScreen() {
   const removeMatch = (id: string) =>
     setMatches(prev => prev.filter(m => m.id !== id));
 
-  // Manual course save
   const saveManualCourse = async () => {
     if (!user) return;
     const trimmed = manualName.trim();
@@ -168,7 +166,7 @@ export default function NewCompetitionScreen() {
       setCourseName(trimmed);
       setShowManualEntry(false);
       setManualName('');
-      Alert.alert('Success', 'Course saved successfully.');
+      Alert.alert('Success', 'Course saved!');
     } catch (e: any) {
       Alert.alert('Save failed', e?.message ?? 'Could not save the course.');
     } finally {
@@ -207,7 +205,10 @@ export default function NewCompetitionScreen() {
   };
 
   const handleCreate = async () => {
-    if (!user) return;
+    if (!user || !courseId) {
+      Alert.alert('Missing info', 'Please select or create a course first.');
+      return;
+    }
     setSaving(true);
     try {
       const shareToken = uid();
@@ -282,53 +283,31 @@ export default function NewCompetitionScreen() {
                 placeholder="Ryder Cup 2026"
                 placeholderTextColor={COLORS.textMuted}
               />
-
-              <Text style={styles.label}>Notes / Description (optional)</Text>
+              <Text style={styles.label}>Notes (optional)</Text>
               <TextInput
-                style={[styles.input, { height: 100 }]}
+                style={[styles.input, { height: 80 }]}
                 value={notes}
                 onChangeText={setNotes}
                 multiline
-                placeholder="Friendly match between Europe and USA..."
               />
-
               <HeroImagePicker onImageSelected={setHeroImageUrl} initialUrl={heroImageUrl} />
-
-              <View style={styles.switchRow}>
-                <Text style={styles.switchLabel}>Hide leaderboard until event ends</Text>
-                <Switch value={hideLeaderboard} onValueChange={setHideLeaderboard} />
-              </View>
             </View>
           )}
 
           {/* COURSE STEP */}
           {step === 'course' && (
             <View style={styles.section}>
-              <Text style={styles.sectionHint}>Choose or create the course for this competition.</Text>
-              {/* Course selection would go here - simplified for now */}
+              <Text style={styles.sectionHint}>Choose or create the course</Text>
+              <TouchableOpacity style={styles.addBtn} onPress={() => setShowScanScreen(true)}>
+                <Ionicons name="scan-outline" size={20} color={COLORS.accent} />
+                <Text style={styles.addBtnText}>Scan Scorecard</Text>
+              </TouchableOpacity>
               <TouchableOpacity style={styles.addBtn} onPress={() => setShowManualEntry(true)}>
-                <Ionicons name="add-circle-outline" size={20} color={COLORS.accent} />
+                <Ionicons name="create-outline" size={20} color={COLORS.accent} />
                 <Text style={styles.addBtnText}>Add Course Manually</Text>
               </TouchableOpacity>
 
-              {courseName ? (
-                <Text style={{ color: COLORS.accent, marginTop: 12 }}>Selected: {courseName}</Text>
-              ) : null}
-
-              {/* Manual entry modal would be implemented here if needed */}
-              {showManualEntry && (
-                <View style={styles.section}>
-                  <TextInput
-                    style={styles.input}
-                    value={manualName}
-                    onChangeText={setManualName}
-                    placeholder="Course name (e.g. Wentworth West)"
-                  />
-                  <TouchableOpacity style={styles.nextBtn} onPress={saveManualCourse} disabled={manualSavingCourse}>
-                    {manualSavingCourse ? <ActivityIndicator color="#fff" /> : <Text style={styles.nextBtnText}>Save Course</Text>}
-                  </TouchableOpacity>
-                </View>
-              )}
+              {courseName && <Text style={{ color: COLORS.accent, marginTop: 12 }}>✓ {courseName}</Text>}
             </View>
           )}
 
@@ -357,7 +336,7 @@ export default function NewCompetitionScreen() {
           {step === 'players' && (
             <View style={styles.section}>
               <Text style={styles.sectionHint}>Add players to each team</Text>
-              {players.map((player, index) => (
+              {players.map((player) => (
                 <PlayerEntry
                   key={player.id}
                   player={player}
@@ -367,7 +346,7 @@ export default function NewCompetitionScreen() {
                   teamBName={teamBName}
                 />
               ))}
-              <View style={{ flexDirection: 'row', gap: 12 }}>
+              <View style={{ flexDirection: 'row', gap: 12, marginTop: 12 }}>
                 <TouchableOpacity style={styles.addBtn} onPress={() => addPlayer('A')}>
                   <Text style={styles.addBtnText}>+ Team A Player</Text>
                 </TouchableOpacity>
@@ -409,12 +388,11 @@ export default function NewCompetitionScreen() {
           {/* REVIEW STEP */}
           {step === 'review' && (
             <View style={styles.section}>
-              <Text style={styles.sectionHint}>Review your competition before creating it.</Text>
-              <Text style={{ fontSize: 16, fontWeight: '600', marginVertical: 8 }}>Event: {name}</Text>
+              <Text style={{ fontSize: 18, fontWeight: '700' }}>{name || 'Untitled Event'}</Text>
               <Text>Course: {courseName || 'Not selected'}</Text>
               <Text>Dates: {startDate} — {endDate}</Text>
+              <Text>Players: {players.filter(p => p.name.trim()).length}</Text>
               <Text>Matches: {matches.length}</Text>
-              <Text>Players: {players.filter(p => p.name).length}</Text>
             </View>
           )}
 
@@ -445,6 +423,19 @@ export default function NewCompetitionScreen() {
           <View style={{ height: SPACING.xl * 2 }} />
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* Scan Screen Modal */}
+      {showScanScreen && (
+        <ScorecardScanScreen
+          onConfirm={(cId, tId, cName) => {
+            setCourseId(cId);
+            setTeeId(tId);
+            setCourseName(cName);
+            setShowScanScreen(false);
+          }}
+          onCancel={() => setShowScanScreen(false)}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -462,13 +453,11 @@ const styles = StyleSheet.create({
   sectionHint: { fontSize: 13, color: COLORS.textMuted, lineHeight: 19 },
   label: { fontSize: 15, fontWeight: '600', color: COLORS.text, marginBottom: 6 },
   input: { backgroundColor: COLORS.surfaceHigh, borderRadius: RADIUS.md, padding: SPACING.md, color: COLORS.text, borderWidth: 1, borderColor: COLORS.border },
-  switchRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: SPACING.sm },
-  switchLabel: { flex: 1, fontSize: 15, color: COLORS.text },
+  addBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, padding: SPACING.md, borderRadius: RADIUS.lg, backgroundColor: COLORS.surfaceHigh, borderWidth: 1, borderColor: COLORS.border },
+  addBtnText: { fontWeight: '600', color: COLORS.text },
   ctaRow: { marginTop: SPACING.xl, gap: SPACING.sm },
   nextBtn: { backgroundColor: COLORS.accent, borderRadius: RADIUS.lg, paddingVertical: SPACING.md, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8 },
   createBtn: { backgroundColor: COLORS.accent, borderRadius: RADIUS.lg, paddingVertical: SPACING.md, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8 },
   nextBtnDisabled: { opacity: 0.4 },
   nextBtnText: { color: COLORS.white, fontSize: 16, fontWeight: '700' },
-  addBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, padding: SPACING.md, borderRadius: RADIUS.lg, backgroundColor: COLORS.surfaceHigh, borderWidth: 1, borderColor: COLORS.border },
-  addBtnText: { fontWeight: '600', color: COLORS.text },
 });
