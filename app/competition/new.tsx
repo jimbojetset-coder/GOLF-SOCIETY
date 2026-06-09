@@ -23,6 +23,7 @@ const uid = () => Math.random().toString(36).slice(2, 10) + Math.random().toStri
 
 // ── Steps ─────────────────────────────────────────────────────
 type Step = 'details' | 'course' | 'teams' | 'dates' | 'players' | 'matches' | 'review';
+
 const STEPS: Step[] = ['details', 'course', 'teams', 'dates', 'players', 'matches', 'review'];
 
 const STEP_LABELS: Record<Step, string> = {
@@ -40,17 +41,11 @@ const DEFAULT_SLOPE = 113;
 const DEFAULT_RATING = 72;
 const DEFAULT_PAR = 72;
 
-const FORMAT_LABEL: Record<MatchDraft['format'], string> = {
-  fourball: 'Fourball',
-  foursomes: 'Foursomes',
-  singles: 'Singles',
-  scramble: 'Scramble',
-};
-
 export default function NewCompetitionScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const scrollRef = useRef<ScrollView>(null);
+
   const [step, setStep] = useState<Step>('details');
   const [saving, setSaving] = useState(false);
 
@@ -101,14 +96,14 @@ export default function NewCompetitionScreen() {
 
   // Matches
   const [matches, setMatches] = useState<MatchDraft[]>([
-    { 
-      id: uid(), 
-      format: 'fourball', 
-      session_date: addDays(todayISO(), 7), 
-      session: 'Morning', 
-      scorer_player_id: null, 
-      players_a: [], 
-      players_b: [] 
+    {
+      id: uid(),
+      format: 'fourball',
+      session_date: addDays(todayISO(), 7),
+      session: 'Morning',
+      scorer_player_id: null,
+      players_a: [],
+      players_b: []
     },
   ]);
 
@@ -131,6 +126,7 @@ export default function NewCompetitionScreen() {
   const removeMatch = (id: string) =>
     setMatches(prev => prev.filter(m => m.id !== id));
 
+  // Manual course save
   const saveManualCourse = async () => {
     if (!user) return;
     const trimmed = manualName.trim();
@@ -172,6 +168,7 @@ export default function NewCompetitionScreen() {
       setCourseName(trimmed);
       setShowManualEntry(false);
       setManualName('');
+      Alert.alert('Success', 'Course saved successfully.');
     } catch (e: any) {
       Alert.alert('Save failed', e?.message ?? 'Could not save the course.');
     } finally {
@@ -181,11 +178,11 @@ export default function NewCompetitionScreen() {
 
   const canProceed = (): boolean => {
     switch (step) {
-      case 'details': return name.trim().length > 0;
-      case 'course': return true;
+      case 'details': return name.trim().length > 2;
+      case 'course': return !!courseId || showManualEntry;
       case 'teams': return teamAName.trim().length > 0 && teamBName.trim().length > 0;
-      case 'dates': return startDate <= endDate;
-      case 'players': return players.filter(p => p.name.trim()).length >= 2;
+      case 'dates': return startDate && endDate && startDate <= endDate;
+      case 'players': return players.filter(p => p.name.trim().length > 0).length >= 2;
       case 'matches': return matches.length > 0;
       default: return true;
     }
@@ -214,7 +211,6 @@ export default function NewCompetitionScreen() {
     setSaving(true);
     try {
       const shareToken = uid();
-
       const baseCompetition = {
         name: name.trim(),
         notes: notes.trim() || null,
@@ -246,6 +242,7 @@ export default function NewCompetitionScreen() {
 
       if (error || !comp) throw error;
 
+      Alert.alert('Success', 'Competition created!');
       router.replace(`/(tabs)/leaderboard?competitionId=${comp.id}`);
     } catch (err: any) {
       Alert.alert('Error', err?.message ?? 'Something went wrong');
@@ -256,8 +253,6 @@ export default function NewCompetitionScreen() {
 
   const eventDays = dateRange(startDate, endDate);
   const stepIndex = STEPS.indexOf(step);
-  const teamAPlayers = players.filter(p => p.team === 'A' && p.name);
-  const teamBPlayers = players.filter(p => p.team === 'B' && p.name);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -276,12 +271,118 @@ export default function NewCompetitionScreen() {
             <Text style={styles.stepTitle}>{STEP_LABELS[step]}</Text>
           </View>
 
-          {/* Matches Step */}
+          {/* DETAILS STEP */}
+          {step === 'details' && (
+            <View style={styles.section}>
+              <Text style={styles.label}>Event Name</Text>
+              <TextInput
+                style={styles.input}
+                value={name}
+                onChangeText={setName}
+                placeholder="Ryder Cup 2026"
+                placeholderTextColor={COLORS.textMuted}
+              />
+
+              <Text style={styles.label}>Notes / Description (optional)</Text>
+              <TextInput
+                style={[styles.input, { height: 100 }]}
+                value={notes}
+                onChangeText={setNotes}
+                multiline
+                placeholder="Friendly match between Europe and USA..."
+              />
+
+              <HeroImagePicker onImageSelected={setHeroImageUrl} initialUrl={heroImageUrl} />
+
+              <View style={styles.switchRow}>
+                <Text style={styles.switchLabel}>Hide leaderboard until event ends</Text>
+                <Switch value={hideLeaderboard} onValueChange={setHideLeaderboard} />
+              </View>
+            </View>
+          )}
+
+          {/* COURSE STEP */}
+          {step === 'course' && (
+            <View style={styles.section}>
+              <Text style={styles.sectionHint}>Choose or create the course for this competition.</Text>
+              {/* Course selection would go here - simplified for now */}
+              <TouchableOpacity style={styles.addBtn} onPress={() => setShowManualEntry(true)}>
+                <Ionicons name="add-circle-outline" size={20} color={COLORS.accent} />
+                <Text style={styles.addBtnText}>Add Course Manually</Text>
+              </TouchableOpacity>
+
+              {courseName ? (
+                <Text style={{ color: COLORS.accent, marginTop: 12 }}>Selected: {courseName}</Text>
+              ) : null}
+
+              {/* Manual entry modal would be implemented here if needed */}
+              {showManualEntry && (
+                <View style={styles.section}>
+                  <TextInput
+                    style={styles.input}
+                    value={manualName}
+                    onChangeText={setManualName}
+                    placeholder="Course name (e.g. Wentworth West)"
+                  />
+                  <TouchableOpacity style={styles.nextBtn} onPress={saveManualCourse} disabled={manualSavingCourse}>
+                    {manualSavingCourse ? <ActivityIndicator color="#fff" /> : <Text style={styles.nextBtnText}>Save Course</Text>}
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+          )}
+
+          {/* TEAMS STEP */}
+          {step === 'teams' && (
+            <View style={styles.section}>
+              <Text style={styles.label}>Team A</Text>
+              <TextInput style={styles.input} value={teamAName} onChangeText={setTeamAName} />
+              <ColourPicker color={teamAColour} onChange={setTeamAColour} />
+
+              <Text style={styles.label}>Team B</Text>
+              <TextInput style={styles.input} value={teamBName} onChangeText={setTeamBName} />
+              <ColourPicker color={teamBColour} onChange={setTeamBColour} />
+            </View>
+          )}
+
+          {/* DATES STEP */}
+          {step === 'dates' && (
+            <View style={styles.section}>
+              <DatePicker label="Start Date" value={startDate} onChange={setStartDate} />
+              <DatePicker label="End Date" value={endDate} onChange={setEndDate} />
+            </View>
+          )}
+
+          {/* PLAYERS STEP */}
+          {step === 'players' && (
+            <View style={styles.section}>
+              <Text style={styles.sectionHint}>Add players to each team</Text>
+              {players.map((player, index) => (
+                <PlayerEntry
+                  key={player.id}
+                  player={player}
+                  onUpdate={(data) => updatePlayer(player.id, data)}
+                  onRemove={() => removePlayer(player.id)}
+                  teamAName={teamAName}
+                  teamBName={teamBName}
+                />
+              ))}
+              <View style={{ flexDirection: 'row', gap: 12 }}>
+                <TouchableOpacity style={styles.addBtn} onPress={() => addPlayer('A')}>
+                  <Text style={styles.addBtnText}>+ Team A Player</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.addBtn} onPress={() => addPlayer('B')}>
+                  <Text style={styles.addBtnText}>+ Team B Player</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+
+          {/* MATCHES STEP */}
           {step === 'matches' && (
             <View style={styles.section}>
               <Text style={styles.sectionHint}>
                 Add the matches for your event. Assign each one to a day and session.
-                Scorers can be nominated now or later.
               </Text>
               {matches.map((m, i) => (
                 <MatchEntry
@@ -294,7 +395,7 @@ export default function NewCompetitionScreen() {
                   teamBName={teamBName}
                   teamAColour={teamAColour}
                   teamBColour={teamBColour}
-                  onUpdate={data => updateMatch(m.id, data)}
+                  onUpdate={(data) => updateMatch(m.id, data)}
                   onRemove={() => removeMatch(m.id)}
                 />
               ))}
@@ -302,6 +403,18 @@ export default function NewCompetitionScreen() {
                 <Ionicons name="add-circle-outline" size={18} color={COLORS.accent} />
                 <Text style={[styles.addBtnText, { color: COLORS.accent }]}>Add another match</Text>
               </TouchableOpacity>
+            </View>
+          )}
+
+          {/* REVIEW STEP */}
+          {step === 'review' && (
+            <View style={styles.section}>
+              <Text style={styles.sectionHint}>Review your competition before creating it.</Text>
+              <Text style={{ fontSize: 16, fontWeight: '600', marginVertical: 8 }}>Event: {name}</Text>
+              <Text>Course: {courseName || 'Not selected'}</Text>
+              <Text>Dates: {startDate} — {endDate}</Text>
+              <Text>Matches: {matches.length}</Text>
+              <Text>Players: {players.filter(p => p.name).length}</Text>
             </View>
           )}
 
@@ -328,6 +441,7 @@ export default function NewCompetitionScreen() {
               </TouchableOpacity>
             )}
           </View>
+
           <View style={{ height: SPACING.xl * 2 }} />
         </ScrollView>
       </KeyboardAvoidingView>
@@ -337,37 +451,24 @@ export default function NewCompetitionScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
-  progressBar: {
-    flexDirection: 'row', gap: 4,
-    paddingHorizontal: SPACING.md, paddingTop: SPACING.sm,
-  },
+  progressBar: { flexDirection: 'row', gap: 4, paddingHorizontal: SPACING.md, paddingTop: SPACING.sm },
   progressStep: { flex: 1, height: 4, borderRadius: 2, backgroundColor: COLORS.border },
   progressStepDone: { backgroundColor: COLORS.accent },
   content: { padding: SPACING.md, paddingBottom: SPACING.xxl },
-  titleRow: {
-    flexDirection: 'row', alignItems: 'center',
-    gap: SPACING.sm, marginBottom: SPACING.lg,
-  },
-  backBtn: {
-    width: 38, height: 38, borderRadius: RADIUS.full,
-    backgroundColor: COLORS.surfaceHigh,
-    borderWidth: 1, borderColor: COLORS.border,
-    justifyContent: 'center', alignItems: 'center',
-  },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, marginBottom: SPACING.lg },
+  backBtn: { width: 38, height: 38, borderRadius: RADIUS.full, backgroundColor: COLORS.surfaceHigh, borderWidth: 1, borderColor: COLORS.border, justifyContent: 'center', alignItems: 'center' },
   stepTitle: { fontSize: 22, fontWeight: '800', color: COLORS.text, letterSpacing: -0.3 },
   section: { gap: SPACING.md },
   sectionHint: { fontSize: 13, color: COLORS.textMuted, lineHeight: 19 },
+  label: { fontSize: 15, fontWeight: '600', color: COLORS.text, marginBottom: 6 },
+  input: { backgroundColor: COLORS.surfaceHigh, borderRadius: RADIUS.md, padding: SPACING.md, color: COLORS.text, borderWidth: 1, borderColor: COLORS.border },
+  switchRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: SPACING.sm },
+  switchLabel: { flex: 1, fontSize: 15, color: COLORS.text },
   ctaRow: { marginTop: SPACING.xl, gap: SPACING.sm },
-  nextBtn: {
-    backgroundColor: COLORS.accent,
-    borderRadius: RADIUS.lg, paddingVertical: SPACING.md,
-    flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8,
-  },
-  createBtn: {
-    backgroundColor: COLORS.accent,
-    borderRadius: RADIUS.lg, paddingVertical: SPACING.md,
-    flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8,
-  },
+  nextBtn: { backgroundColor: COLORS.accent, borderRadius: RADIUS.lg, paddingVertical: SPACING.md, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8 },
+  createBtn: { backgroundColor: COLORS.accent, borderRadius: RADIUS.lg, paddingVertical: SPACING.md, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8 },
   nextBtnDisabled: { opacity: 0.4 },
   nextBtnText: { color: COLORS.white, fontSize: 16, fontWeight: '700' },
+  addBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, padding: SPACING.md, borderRadius: RADIUS.lg, backgroundColor: COLORS.surfaceHigh, borderWidth: 1, borderColor: COLORS.border },
+  addBtnText: { fontWeight: '600', color: COLORS.text },
 });
