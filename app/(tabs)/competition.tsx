@@ -4,7 +4,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity,
-  StyleSheet, SafeAreaView, ActivityIndicator, StatusBar,
+  StyleSheet, SafeAreaView, ActivityIndicator, StatusBar, Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -52,14 +52,39 @@ export default function CompetitionTab() {
     setLoading(false);
   };
 
+  const deleteCompetition = (comp: Competition) => {
+    Alert.alert(
+      'Delete Competition?',
+      `This will permanently delete "${comp.name}" and all its matches and scores.\n\nThis action cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            const { error } = await supabase
+              .from('competitions')
+              .delete()
+              .eq('id', comp.id);
+
+            if (error) {
+              Alert.alert('Error', 'Failed to delete competition');
+            } else {
+              Alert.alert('Deleted', 'Competition has been removed');
+              load(); // refresh list
+            }
+          }
+        }
+      ]
+    );
+  };
+
   const renderCard = ({ item }: { item: Competition }) => {
     const isOwner = item.created_by_user_id === user?.id;
     const cfg = STATUS_CONFIG[item.status] ?? STATUS_CONFIG.active;
-
     const dateLabel = (item.start_date ?? item.event_date)
-      ? parseLocalDate(item.start_date ?? item.event_date!).toLocaleDateString('en-GB', { 
-          day: 'numeric', 
-          month: 'short' 
+      ? parseLocalDate(item.start_date ?? item.event_date!).toLocaleDateString('en-GB', {
+          day: 'numeric', month: 'short'
         })
       : 'No date';
 
@@ -76,7 +101,6 @@ export default function CompetitionTab() {
           </View>
         </View>
 
-        {/* Compact 1-line date + teams */}
         <View style={styles.compactInfo}>
           <Text style={styles.dateText}>{dateLabel}</Text>
           <Text style={styles.teamsText}>
@@ -88,6 +112,13 @@ export default function CompetitionTab() {
           {isOwner && item.share_token && (
             <ShareCompetitionButton competitionName={item.name} shareToken={item.share_token} />
           )}
+
+          {isOwner && (
+            <TouchableOpacity onPress={() => deleteCompetition(item)} style={styles.deleteBtn}>
+              <Ionicons name="trash-outline" size={18} color={COLORS.danger} />
+            </TouchableOpacity>
+          )}
+
           <Ionicons name="chevron-forward" size={18} color={COLORS.textMuted} />
         </View>
       </TouchableOpacity>
@@ -176,26 +207,20 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5 
   },
 
-  // Compact row
-  compactInfo: {
-    marginBottom: 12,
-  },
-  dateText: {
-    fontSize: 14,
-    color: COLORS.textMuted,
-    fontWeight: '600',
-  },
-  teamsText: {
-    fontSize: 15,
-    color: COLORS.text,
-    marginTop: 2,
-  },
+  compactInfo: { marginBottom: 12 },
+  dateText: { fontSize: 14, color: COLORS.textMuted, fontWeight: '600' },
+  teamsText: { fontSize: 15, color: COLORS.text, marginTop: 2 },
 
   cardFooter: { 
     flexDirection: 'row', 
     justifyContent: 'space-between', 
     alignItems: 'center' 
   },
+  deleteBtn: {
+    padding: 6,
+    marginRight: 8,
+  },
+
   empty: { 
     flex: 1, 
     justifyContent: 'center', 
