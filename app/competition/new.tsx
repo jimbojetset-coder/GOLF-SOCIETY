@@ -8,21 +8,20 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../../src/api/supabase';
 import { useAuth } from '../../src/hooks/useAuth';
-import { COLORS, SPACING, RADIUS, SHADOW } from '../../src/constants/theme';
+import { COLORS, SPACING, RADIUS } from '../../src/constants/theme';
 import DatePicker from '../../src/components/shared/DatePicker';
 import ColourPicker from '../../src/components/shared/ColourPicker';
 import PlayerEntry, { type PlayerDraft } from '../../src/components/competition/PlayerEntry';
 import MatchEntry, { type MatchDraft } from '../../src/components/competition/MatchEntry';
 import HeroImagePicker from '../../src/components/competition/HeroImagePicker';
 import { DEFAULT_HERO } from '../../src/constants/heroImages';
-import { todayISO, addDays, dateRange, fmtDay, fmtFull } from '../../src/utils/dateHelpers';
-import { calcPlayingHandicap } from '../../src/utils/scoring';
+import { todayISO, addDays, dateRange } from '../../src/utils/dateHelpers';
 import ScorecardScanScreen from '../../src/screens/ScorecardScanScreen';
 
 const uid = () => Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 10);
 
-// ── Steps ─────────────────────────────────────────────────────
 type Step = 'details' | 'course' | 'teams' | 'dates' | 'players' | 'matches' | 'review';
+
 const STEPS: Step[] = ['details', 'course', 'teams', 'dates', 'players', 'matches', 'review'];
 
 const STEP_LABELS: Record<Step, string> = {
@@ -35,11 +34,6 @@ const STEP_LABELS: Record<Step, string> = {
   review: 'Review & Create',
 };
 
-// ── Defaults ──────────────────────────────────────────────────
-const DEFAULT_SLOPE = 113;
-const DEFAULT_RATING = 72;
-const DEFAULT_PAR = 72;
-
 export default function NewCompetitionScreen() {
   const router = useRouter();
   const { user } = useAuth();
@@ -47,8 +41,9 @@ export default function NewCompetitionScreen() {
 
   const [step, setStep] = useState<Step>('details');
   const [saving, setSaving] = useState(false);
+  const [showScanScreen, setShowScanScreen] = useState(false);
 
-  // Details
+  // Form State
   const [name, setName] = useState('');
   const [notes, setNotes] = useState('');
   const [heroImageUrl, setHeroImageUrl] = useState<string | null>(null);
@@ -57,12 +52,7 @@ export default function NewCompetitionScreen() {
   // Course
   const [courseId, setCourseId] = useState<string | null>(null);
   const [teeId, setTeeId] = useState<string | null>(null);
-  const [courseName, setCourseName] = useState<string>('');
-  const [showScanScreen, setShowScanScreen] = useState(false);
-  const [showManualEntry, setShowManualEntry] = useState(false);
-  const [manualName, setManualName] = useState('');
-  const [manualSavingCourse, setManualSavingCourse] = useState(false);
-  const [resultsHiddenCount, setResultsHiddenCount] = useState(0);
+  const [courseName, setCourseName] = useState('');
 
   // Teams
   const [teamAName, setTeamAName] = useState('Europe');
@@ -73,9 +63,6 @@ export default function NewCompetitionScreen() {
   // Dates
   const [startDate, setStartDate] = useState(addDays(todayISO(), 7));
   const [endDate, setEndDate] = useState(addDays(todayISO(), 9));
-
-  // Handicap
-  const [handicapAllowance, setHandicapAllowance] = useState<number>(0.9);
 
   // Players
   const [players, setPlayers] = useState<PlayerDraft[]>([
@@ -112,7 +99,7 @@ export default function NewCompetitionScreen() {
       id: uid(),
       format: 'fourball',
       session_date: defaultDate,
-      session: 'Afternoon',
+      session: matches.length % 2 === 0 ? 'Morning' : 'Afternoon',
       scorer_player_id: null,
       players_a: [],
       players_b: [],
@@ -125,62 +112,13 @@ export default function NewCompetitionScreen() {
   const removeMatch = (id: string) =>
     setMatches(prev => prev.filter(m => m.id !== id));
 
-  const saveManualCourse = async () => {
-    if (!user) return;
-    const trimmed = manualName.trim();
-    if (trimmed.length < 2) {
-      Alert.alert('Course name', 'Please enter a course name.');
-      return;
-    }
-    setManualSavingCourse(true);
-    try {
-      const { data: courseData, error: courseErr } = await supabase
-        .from('courses')
-        .insert({
-          name: trimmed,
-          holes_count: 18,
-          created_by_user_id: user.id,
-          source: 'manual',
-          is_verified: false,
-        })
-        .select()
-        .single();
-      if (courseErr) throw courseErr;
-
-      const { data: teeData, error: teeErr } = await supabase
-        .from('course_tees')
-        .insert({
-          course_id: courseData.id,
-          tee_name: 'Yellow',
-          tee_colour: 'Yellow',
-          course_rating: DEFAULT_RATING,
-          slope_rating: DEFAULT_SLOPE,
-          total_par: DEFAULT_PAR,
-        })
-        .select()
-        .single();
-      if (teeErr) throw teeErr;
-
-      setCourseId(courseData.id);
-      setTeeId(teeData.id);
-      setCourseName(trimmed);
-      setShowManualEntry(false);
-      setManualName('');
-      Alert.alert('Success', 'Course saved!');
-    } catch (e: any) {
-      Alert.alert('Save failed', e?.message ?? 'Could not save the course.');
-    } finally {
-      setManualSavingCourse(false);
-    }
-  };
-
   const canProceed = (): boolean => {
     switch (step) {
       case 'details': return name.trim().length > 2;
-      case 'course': return !!courseId || showManualEntry;
+      case 'course': return !!courseId;
       case 'teams': return teamAName.trim().length > 0 && teamBName.trim().length > 0;
-      case 'dates': return startDate && endDate && startDate <= endDate;
-      case 'players': return players.filter(p => p.name.trim().length > 0).length >= 2;
+      case 'dates': return !!startDate && !!endDate && startDate <= endDate;
+      case 'players': return players.filter(p => p.name?.trim()).length >= 2;
       case 'matches': return matches.length > 0;
       default: return true;
     }
@@ -206,38 +144,35 @@ export default function NewCompetitionScreen() {
 
   const handleCreate = async () => {
     if (!user || !courseId) {
-      Alert.alert('Missing info', 'Please select or create a course first.');
+      Alert.alert('Missing Information', 'Please select a course.');
       return;
     }
     setSaving(true);
     try {
       const shareToken = uid();
-      const baseCompetition = {
-        name: name.trim(),
-        notes: notes.trim() || null,
-        start_date: startDate,
-        end_date: endDate,
-        event_date: startDate,
-        course_id: courseId,
-        tee_id: teeId,
-        team_a_name: teamAName.trim(),
-        team_a_colour: teamAColour,
-        team_b_name: teamBName.trim(),
-        team_b_colour: teamBColour,
-        status: 'active',
-        created_by_user_id: user.id,
-        share_token: shareToken,
-        hero_image_url: heroImageUrl ?? DEFAULT_HERO,
-        hide_leaderboard: hideLeaderboard,
-        team_a_points: 0,
-        team_b_points: 0,
-        hide_last_n_results: resultsHiddenCount,
-        handicap_allowance: handicapAllowance,
-      };
-
       const { data: comp, error } = await supabase
         .from('competitions')
-        .insert(baseCompetition)
+        .insert({
+          name: name.trim(),
+          notes: notes.trim() || null,
+          start_date: startDate,
+          end_date: endDate,
+          event_date: startDate,
+          course_id: courseId,
+          tee_id: teeId,
+          team_a_name: teamAName.trim(),
+          team_a_colour: teamAColour,
+          team_b_name: teamBName.trim(),
+          team_b_colour: teamBColour,
+          status: 'active',
+          created_by_user_id: user.id,
+          share_token: shareToken,
+          hero_image_url: heroImageUrl ?? DEFAULT_HERO,
+          hide_leaderboard: hideLeaderboard,
+          team_a_points: 0,
+          team_b_points: 0,
+          handicap_allowance: 0.9,
+        })
         .select()
         .single();
 
@@ -246,7 +181,7 @@ export default function NewCompetitionScreen() {
       Alert.alert('Success', 'Competition created!');
       router.replace(`/(tabs)/leaderboard?competitionId=${comp.id}`);
     } catch (err: any) {
-      Alert.alert('Error', err?.message ?? 'Something went wrong');
+      Alert.alert('Error', err?.message ?? 'Failed to create');
     } finally {
       setSaving(false);
     }
@@ -272,46 +207,35 @@ export default function NewCompetitionScreen() {
             <Text style={styles.stepTitle}>{STEP_LABELS[step]}</Text>
           </View>
 
-          {/* DETAILS STEP */}
+          {/* 2. DETAILS */}
           {step === 'details' && (
             <View style={styles.section}>
               <Text style={styles.label}>Event Name</Text>
-              <TextInput
-                style={styles.input}
-                value={name}
-                onChangeText={setName}
-                placeholder="Ryder Cup 2026"
-                placeholderTextColor={COLORS.textMuted}
-              />
+              <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="Ryder Cup 2026" />
               <Text style={styles.label}>Notes (optional)</Text>
-              <TextInput
-                style={[styles.input, { height: 80 }]}
-                value={notes}
-                onChangeText={setNotes}
-                multiline
-              />
+              <TextInput style={[styles.input, { height: 100 }]} value={notes} onChangeText={setNotes} multiline />
               <HeroImagePicker onImageSelected={setHeroImageUrl} initialUrl={heroImageUrl} />
             </View>
           )}
 
-          {/* COURSE STEP */}
+          {/* 3. COURSE */}
           {step === 'course' && (
             <View style={styles.section}>
-              <Text style={styles.sectionHint}>Choose or create the course</Text>
+              <Text style={styles.sectionHint}>Add course by scanning a scorecard or manually</Text>
               <TouchableOpacity style={styles.addBtn} onPress={() => setShowScanScreen(true)}>
                 <Ionicons name="scan-outline" size={20} color={COLORS.accent} />
                 <Text style={styles.addBtnText}>Scan Scorecard</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.addBtn} onPress={() => setShowManualEntry(true)}>
+              <TouchableOpacity style={styles.addBtn} onPress={() => Alert.alert('Manual course', 'Full manual course creation coming soon')}>
                 <Ionicons name="create-outline" size={20} color={COLORS.accent} />
-                <Text style={styles.addBtnText}>Add Course Manually</Text>
+                <Text style={styles.addBtnText}>Manual Entry</Text>
               </TouchableOpacity>
 
-              {courseName && <Text style={{ color: COLORS.accent, marginTop: 12 }}>✓ {courseName}</Text>}
+              {courseName && <Text style={{ color: COLORS.accent, marginTop: 16, fontWeight: '600' }}>✓ Selected: {courseName}</Text>}
             </View>
           )}
 
-          {/* TEAMS STEP */}
+          {/* 4. TEAMS */}
           {step === 'teams' && (
             <View style={styles.section}>
               <Text style={styles.label}>Team A</Text>
@@ -324,7 +248,7 @@ export default function NewCompetitionScreen() {
             </View>
           )}
 
-          {/* DATES STEP */}
+          {/* 5. DATES */}
           {step === 'dates' && (
             <View style={styles.section}>
               <DatePicker label="Start Date" value={startDate} onChange={setStartDate} />
@@ -332,21 +256,20 @@ export default function NewCompetitionScreen() {
             </View>
           )}
 
-          {/* PLAYERS STEP */}
+          {/* 6. PLAYERS */}
           {step === 'players' && (
             <View style={styles.section}>
-              <Text style={styles.sectionHint}>Add players to each team</Text>
-              {players.map((player) => (
+              {players.map(player => (
                 <PlayerEntry
                   key={player.id}
                   player={player}
-                  onUpdate={(data) => updatePlayer(player.id, data)}
+                  onUpdate={data => updatePlayer(player.id, data)}
                   onRemove={() => removePlayer(player.id)}
                   teamAName={teamAName}
                   teamBName={teamBName}
                 />
               ))}
-              <View style={{ flexDirection: 'row', gap: 12, marginTop: 12 }}>
+              <View style={{ flexDirection: 'row', gap: 12 }}>
                 <TouchableOpacity style={styles.addBtn} onPress={() => addPlayer('A')}>
                   <Text style={styles.addBtnText}>+ Team A Player</Text>
                 </TouchableOpacity>
@@ -357,12 +280,10 @@ export default function NewCompetitionScreen() {
             </View>
           )}
 
-          {/* MATCHES STEP */}
+          {/* 7. MATCHES */}
           {step === 'matches' && (
             <View style={styles.section}>
-              <Text style={styles.sectionHint}>
-                Add the matches for your event. Assign each one to a day and session.
-              </Text>
+              <Text style={styles.sectionHint}>Add matches and assign dates</Text>
               {matches.map((m, i) => (
                 <MatchEntry
                   key={m.id}
@@ -374,24 +295,25 @@ export default function NewCompetitionScreen() {
                   teamBName={teamBName}
                   teamAColour={teamAColour}
                   teamBColour={teamBColour}
-                  onUpdate={(data) => updateMatch(m.id, data)}
+                  onUpdate={data => updateMatch(m.id, data)}
                   onRemove={() => removeMatch(m.id)}
                 />
               ))}
               <TouchableOpacity style={styles.addBtn} onPress={addMatch}>
                 <Ionicons name="add-circle-outline" size={18} color={COLORS.accent} />
-                <Text style={[styles.addBtnText, { color: COLORS.accent }]}>Add another match</Text>
+                <Text style={styles.addBtnText}>Add Another Match</Text>
               </TouchableOpacity>
             </View>
           )}
 
-          {/* REVIEW STEP */}
+          {/* 8. REVIEW */}
           {step === 'review' && (
             <View style={styles.section}>
-              <Text style={{ fontSize: 18, fontWeight: '700' }}>{name || 'Untitled Event'}</Text>
+              <Text style={styles.label}>Review your competition</Text>
+              <Text style={{ fontSize: 18, fontWeight: '700' }}>{name}</Text>
               <Text>Course: {courseName || 'Not selected'}</Text>
-              <Text>Dates: {startDate} — {endDate}</Text>
-              <Text>Players: {players.filter(p => p.name.trim()).length}</Text>
+              <Text>Dates: {startDate} – {endDate}</Text>
+              <Text>Players: {players.filter(p => p.name?.trim()).length}</Text>
               <Text>Matches: {matches.length}</Text>
             </View>
           )}
@@ -407,24 +329,14 @@ export default function NewCompetitionScreen() {
                 <Ionicons name="arrow-forward" size={18} color="#fff" />
               </TouchableOpacity>
             ) : (
-              <TouchableOpacity
-                style={[styles.createBtn, saving && styles.nextBtnDisabled]}
-                onPress={handleCreate}
-                disabled={saving}
-              >
-                {saving ? <ActivityIndicator color="#fff" /> : <>
-                  <Ionicons name="golf-outline" size={18} color="#fff" />
-                  <Text style={styles.nextBtnText}>Create Competition</Text>
-                </>}
+              <TouchableOpacity style={styles.createBtn} onPress={handleCreate} disabled={saving}>
+                {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.createBtnText}>Create Competition</Text>}
               </TouchableOpacity>
             )}
           </View>
-
-          <View style={{ height: SPACING.xl * 2 }} />
         </ScrollView>
       </KeyboardAvoidingView>
 
-      {/* Scan Screen Modal */}
       {showScanScreen && (
         <ScorecardScanScreen
           onConfirm={(cId, tId, cName) => {
@@ -443,21 +355,21 @@ export default function NewCompetitionScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   progressBar: { flexDirection: 'row', gap: 4, paddingHorizontal: SPACING.md, paddingTop: SPACING.sm },
-  progressStep: { flex: 1, height: 4, borderRadius: 2, backgroundColor: COLORS.border },
+  progressStep: { flex: 1, height: 4, backgroundColor: COLORS.border, borderRadius: 2 },
   progressStepDone: { backgroundColor: COLORS.accent },
-  content: { padding: SPACING.md, paddingBottom: SPACING.xxl },
+  content: { padding: SPACING.md, paddingBottom: 120 },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, marginBottom: SPACING.lg },
   backBtn: { width: 38, height: 38, borderRadius: RADIUS.full, backgroundColor: COLORS.surfaceHigh, borderWidth: 1, borderColor: COLORS.border, justifyContent: 'center', alignItems: 'center' },
-  stepTitle: { fontSize: 22, fontWeight: '800', color: COLORS.text, letterSpacing: -0.3 },
-  section: { gap: SPACING.md },
-  sectionHint: { fontSize: 13, color: COLORS.textMuted, lineHeight: 19 },
-  label: { fontSize: 15, fontWeight: '600', color: COLORS.text, marginBottom: 6 },
-  input: { backgroundColor: COLORS.surfaceHigh, borderRadius: RADIUS.md, padding: SPACING.md, color: COLORS.text, borderWidth: 1, borderColor: COLORS.border },
-  addBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, padding: SPACING.md, borderRadius: RADIUS.lg, backgroundColor: COLORS.surfaceHigh, borderWidth: 1, borderColor: COLORS.border },
-  addBtnText: { fontWeight: '600', color: COLORS.text },
-  ctaRow: { marginTop: SPACING.xl, gap: SPACING.sm },
+  stepTitle: { fontSize: 22, fontWeight: '800', color: COLORS.text },
+  section: { gap: SPACING.md, marginBottom: SPACING.lg },
+  sectionHint: { fontSize: 13, color: COLORS.textMuted },
+  label: { fontSize: 15, fontWeight: '600', marginBottom: 6 },
+  input: { backgroundColor: COLORS.surfaceHigh, borderRadius: RADIUS.md, padding: SPACING.md, borderWidth: 1, borderColor: COLORS.border },
+  addBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, padding: SPACING.md, backgroundColor: COLORS.surfaceHigh, borderRadius: RADIUS.lg, borderWidth: 1, borderColor: COLORS.border },
+  addBtnText: { fontWeight: '600' },
+  ctaRow: { marginTop: SPACING.xl },
   nextBtn: { backgroundColor: COLORS.accent, borderRadius: RADIUS.lg, paddingVertical: SPACING.md, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8 },
-  createBtn: { backgroundColor: COLORS.accent, borderRadius: RADIUS.lg, paddingVertical: SPACING.md, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8 },
-  nextBtnDisabled: { opacity: 0.4 },
-  nextBtnText: { color: COLORS.white, fontSize: 16, fontWeight: '700' },
+  createBtn: { backgroundColor: COLORS.accent, borderRadius: RADIUS.lg, paddingVertical: SPACING.md, alignItems: 'center' },
+  nextBtnDisabled: { opacity: 0.5 },
+  createBtnText: { color: '#fff', fontSize: 17, fontWeight: '700' },
 });
