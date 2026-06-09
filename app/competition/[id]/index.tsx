@@ -24,16 +24,15 @@ const SESSION_LABELS: Record<string, string> = {
 };
 
 export default function CompetitionDetailScreen() {
-  const { id }    = useLocalSearchParams<{ id: string }>();
-  const router    = useRouter();
-  const { user }  = useAuth();
-
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const router = useRouter();
+  const { user } = useAuth();
   const [competition, setCompetition] = useState<any>(null);
-  const [matches,     setMatches]     = useState<any[]>([]);
-  const [loading,     setLoading]     = useState(true);
-  const [refreshing,  setRefreshing]  = useState(false);
+  const [matches, setMatches] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const isCreator  = competition?.created_by_user_id === user?.id;
+  const isCreator = competition?.created_by_user_id === user?.id;
   const compClosed = competition?.status === 'history' || competition?.status === 'closed';
 
   const load = useCallback(async (isRefresh = false) => {
@@ -50,13 +49,13 @@ export default function CompetitionDetailScreen() {
       .eq('competition_id', id)
       .order('session_date', { ascending: true })
       .order('match_number', { ascending: true });
-    setMatches(matchData ?? []);
 
-    setLoading(false); setRefreshing(false);
+    setMatches(matchData ?? []);
+    setLoading(false);
+    setRefreshing(false);
   }, [id]);
 
   useEffect(() => { load(); }, [load]);
-
 
   const shareScorerLink = async (match: any) => {
     if (!match.scorer_share_token) return;
@@ -113,7 +112,7 @@ export default function CompetitionDetailScreen() {
         ? parseLocalDate(m.session_date).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' })
         : 'Unscheduled';
       const sesLabel = SESSION_LABELS[m.session ?? ''] ?? (m.session ?? '');
-      sessionMap.set(key, { key, label: `${dateLabel}${sesLabel ? `  ·  ${sesLabel}` : ''}`, matches: [] });
+      sessionMap.set(key, { key, label: `${dateLabel}${sesLabel ? ` · ${sesLabel}` : ''}`, matches: [] });
     }
     sessionMap.get(key)!.matches.push(m);
   }
@@ -123,7 +122,7 @@ export default function CompetitionDetailScreen() {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.background} />
 
-      {/* ── Header bar ── */}
+      {/* Improved Nav Header */}
       <View style={styles.navBar}>
         <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
           <Ionicons name="chevron-back" size={22} color={COLORS.text} />
@@ -143,23 +142,25 @@ export default function CompetitionDetailScreen() {
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
       >
-        {/* ── Score card ── */}
+        {/* Improved Score Header */}
         <View style={styles.scoreCard}>
           <View style={[styles.teamBlock, { borderColor: competition.team_a_colour + '50', backgroundColor: competition.team_a_colour + '10' }]}>
             <Text style={[styles.teamName, { color: competition.team_a_colour }]}>{competition.team_a_name}</Text>
             <Text style={[styles.teamPoints, { color: competition.team_a_colour }]}>{totalA}</Text>
           </View>
+
           <View style={styles.scoreCenter}>
-            <Text style={styles.scoreDash}>—</Text>
+            <Text style={styles.scoreDash}>VS</Text>
             <Text style={styles.scoreProgress}>{completed}/{matches.length}</Text>
           </View>
+
           <View style={[styles.teamBlock, styles.teamBlockRight, { borderColor: competition.team_b_colour + '50', backgroundColor: competition.team_b_colour + '10' }]}>
             <Text style={[styles.teamName, { color: competition.team_b_colour }]}>{competition.team_b_name}</Text>
             <Text style={[styles.teamPoints, { color: competition.team_b_colour }]}>{totalB}</Text>
           </View>
         </View>
 
-        {/* Status pill */}
+        {/* Status + Date Row */}
         <View style={styles.statusRow}>
           {competition.status === 'active' && (
             <View style={styles.livePill}>
@@ -182,21 +183,20 @@ export default function CompetitionDetailScreen() {
           )}
         </View>
 
-        {/* ── Match list by session ── */}
+        {/* Match list by session */}
         {sessions.map(session => (
           <View key={session.key}>
             <Text style={styles.sessionLabel}>{session.label.toUpperCase()}</Text>
             {session.matches.map((match: any) => {
-              const isLive     = match.status === 'in_progress';
+              const isLive = match.status === 'in_progress';
               const isComplete = match.status === 'complete';
-              const playersA   = (match.match_players ?? []).filter((mp: any) => mp.team === 'A').map((mp: any) => mp.players?.name ?? '—');
-              const playersB   = (match.match_players ?? []).filter((mp: any) => mp.team === 'B').map((mp: any) => mp.players?.name ?? '—');
+              const playersA = (match.match_players ?? []).filter((mp: any) => mp.team === 'A').map((mp: any) => mp.players?.name ?? '—');
+              const playersB = (match.match_players ?? []).filter((mp: any) => mp.team === 'B').map((mp: any) => mp.players?.name ?? '—');
               const statusInfo = isComplete ? parseStoredResult(match.result, competition.team_a_name, competition.team_b_name) : null;
-              const accentCol  = isLive ? COLORS.accent : isComplete ? (match.winning_team === 'A' ? competition.team_a_colour : match.winning_team === 'B' ? competition.team_b_colour : COLORS.textMuted) : COLORS.border;
+              const accentCol = isLive ? COLORS.accent : isComplete ? (match.winning_team === 'A' ? competition.team_a_colour : match.winning_team === 'B' ? competition.team_b_colour : COLORS.textMuted) : COLORS.border;
 
               return (
                 <View key={match.id} style={[styles.matchCard, { borderLeftColor: accentCol }]}>
-                  {/* Top */}
                   <View style={styles.matchTop}>
                     <Text style={styles.matchFormat}>{FORMAT_LABELS[match.format] ?? match.format}</Text>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -217,7 +217,6 @@ export default function CompetitionDetailScreen() {
                     </View>
                   </View>
 
-                  {/* Players */}
                   <View style={styles.matchPlayers}>
                     <View style={styles.matchTeam}>
                       <Text style={[styles.matchTeamLabel, { color: competition.team_a_colour }]}>
@@ -238,7 +237,6 @@ export default function CompetitionDetailScreen() {
                     </View>
                   </View>
 
-                  {/* Start Scoring — shown to the assigned scorer */}
                   {!isComplete && match.scorer_user_id === user?.id && (
                     <TouchableOpacity
                       style={styles.startScoringBtn}
@@ -252,7 +250,6 @@ export default function CompetitionDetailScreen() {
                     </TouchableOpacity>
                   )}
 
-                  {/* Scorer share — creator only, pending or in_progress */}
                   {isCreator && !isComplete && match.scorer_share_token && (
                     <TouchableOpacity
                       style={styles.scorerShareBtn}
@@ -271,7 +268,7 @@ export default function CompetitionDetailScreen() {
           </View>
         ))}
 
-        {/* ── Organiser controls ── */}
+        {/* Organiser controls */}
         {isCreator && (
           <View style={styles.orgControls}>
             {competition.status === 'active' && (
@@ -313,103 +310,155 @@ export default function CompetitionDetailScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
-
   navBar: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: SPACING.md, paddingTop: SPACING.lg, paddingBottom: SPACING.md,
-    gap: SPACING.sm, borderBottomWidth: 1, borderBottomColor: COLORS.border,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: SPACING.md,
+    paddingTop: SPACING.xl,
+    paddingBottom: SPACING.md,
+    gap: SPACING.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
   },
   backBtn: {
     width: 38, height: 38, borderRadius: RADIUS.full,
-    backgroundColor: COLORS.surfaceHigh, borderWidth: 1, borderColor: COLORS.border,
-    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: COLORS.surfaceHigh,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   navTitle: { flex: 1, fontSize: 18, fontWeight: '800', color: COLORS.text, letterSpacing: -0.3 },
 
   scroll: { padding: SPACING.md, gap: SPACING.sm },
 
-  // Score card
+  /* Improved Score Header */
   scoreCard: {
-    flexDirection: 'row', alignItems: 'stretch', gap: SPACING.sm,
-    marginBottom: SPACING.xs,
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    gap: SPACING.sm,
+    marginBottom: SPACING.md,
   },
   teamBlock: {
-    flex: 1, borderWidth: 1.5, borderRadius: RADIUS.lg,
-    padding: SPACING.md, alignItems: 'center',
+    flex: 1,
+    borderWidth: 1.5,
+    borderRadius: RADIUS.lg,
+    padding: SPACING.md,
+    alignItems: 'center',
     ...SHADOW.card,
   },
   teamBlockRight: {},
-  teamName:   { fontSize: 11, fontWeight: '800', letterSpacing: 1, marginBottom: 2 },
-  teamPoints: { fontSize: 48, fontWeight: '800', lineHeight: 56 },
-  scoreCenter:   { justifyContent: 'center', alignItems: 'center', paddingHorizontal: 4 },
-  scoreDash:     { fontSize: 22, color: COLORS.border, fontWeight: '300' },
+  teamName: { fontSize: 11, fontWeight: '800', letterSpacing: 1, marginBottom: 4 },
+  teamPoints: { fontSize: 48, fontWeight: '800', lineHeight: 52 },
+  scoreCenter: { justifyContent: 'center', alignItems: 'center', paddingHorizontal: 8 },
+  scoreDash: { fontSize: 22, color: COLORS.textMuted, fontWeight: '300' },
   scoreProgress: { fontSize: 11, color: COLORS.textMuted, marginTop: 4 },
 
-  // Status row
-  statusRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, marginBottom: SPACING.xs },
-  livePill: {
-    flexDirection: 'row', alignItems: 'center', gap: 5,
-    backgroundColor: COLORS.accentLight, borderRadius: RADIUS.full,
-    paddingHorizontal: 10, paddingVertical: 4,
+  statusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    marginBottom: SPACING.lg,
   },
-  liveDot:      { width: 6, height: 6, borderRadius: RADIUS.full, backgroundColor: COLORS.accent },
+  livePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: COLORS.accentLight,
+    borderRadius: RADIUS.full,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  liveDot: { width: 6, height: 6, borderRadius: RADIUS.full, backgroundColor: COLORS.accent },
   livePillText: { fontSize: 10, fontWeight: '800', color: COLORS.accent, letterSpacing: 0.5 },
   closedPill: {
-    backgroundColor: COLORS.surfaceHigh, borderRadius: RADIUS.full,
-    paddingHorizontal: 10, paddingVertical: 4,
+    backgroundColor: COLORS.surfaceHigh,
+    borderRadius: RADIUS.full,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
   },
   closedPillText: { fontSize: 10, fontWeight: '700', color: COLORS.textMuted },
-  dateLabel:      { fontSize: 12, color: COLORS.textMuted },
+  dateLabel: { fontSize: 12, color: COLORS.textMuted, flex: 1, textAlign: 'right' },
 
-  // Sessions
   sessionLabel: {
-    fontSize: 10, fontWeight: '800', color: COLORS.textMuted, letterSpacing: 1.5,
-    marginTop: SPACING.md, marginBottom: SPACING.xs, marginLeft: 2,
+    fontSize: 10,
+    fontWeight: '800',
+    color: COLORS.textMuted,
+    letterSpacing: 1.5,
+    marginTop: SPACING.md,
+    marginBottom: SPACING.xs,
+    marginLeft: 4,
   },
 
-  // Match cards
   matchCard: {
     backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.lg, borderWidth: 1, borderColor: COLORS.border,
+    borderRadius: RADIUS.lg,
+    borderWidth: 1,
+    borderColor: COLORS.border,
     borderLeftWidth: 4,
-    padding: SPACING.md, gap: SPACING.sm,
+    padding: SPACING.md,
+    gap: SPACING.sm,
     marginBottom: SPACING.sm,
     ...SHADOW.card,
   },
-  matchTop:       { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  matchFormat:    { fontSize: 11, fontWeight: '600', color: COLORS.textMuted, letterSpacing: 0.3 },
-  resultText:     { fontSize: 13, fontWeight: '800' },
-  pendingText:    { fontSize: 11, color: COLORS.textMuted },
-  liveBadge:      { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: COLORS.accentLight, borderRadius: RADIUS.full, paddingHorizontal: 8, paddingVertical: 3 },
-  liveBadgeDot:   { width: 5, height: 5, borderRadius: RADIUS.full, backgroundColor: COLORS.accent },
-  liveBadgeText:  { fontSize: 9, fontWeight: '800', color: COLORS.accent, letterSpacing: 0.5 },
+  matchTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  matchFormat: { fontSize: 11, fontWeight: '600', color: COLORS.textMuted, letterSpacing: 0.3 },
+  resultText: { fontSize: 13, fontWeight: '800' },
+  pendingText: { fontSize: 11, color: COLORS.textMuted },
+  liveBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: COLORS.accentLight, borderRadius: RADIUS.full, paddingHorizontal: 8, paddingVertical: 3 },
+  liveBadgeDot: { width: 5, height: 5, borderRadius: RADIUS.full, backgroundColor: COLORS.accent },
+  liveBadgeText: { fontSize: 9, fontWeight: '800', color: COLORS.accent, letterSpacing: 0.5 },
 
-  matchPlayers:     { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
-  matchTeam:        { flex: 1 },
-  matchTeamLabel:   { fontSize: 9, fontWeight: '800', letterSpacing: 1, marginBottom: 2 },
+  matchPlayers: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
+  matchTeam: { flex: 1 },
+  matchTeamLabel: { fontSize: 9, fontWeight: '800', letterSpacing: 1, marginBottom: 2 },
   matchPlayerNames: { fontSize: 13, fontWeight: '600', color: COLORS.text },
-  matchVs:          { fontSize: 11, color: COLORS.textMuted },
+  matchVs: { fontSize: 11, color: COLORS.textMuted },
 
-  // Organiser controls
+  startScoringBtn: {
+    backgroundColor: COLORS.accent,
+    borderRadius: RADIUS.lg,
+    paddingVertical: SPACING.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: SPACING.xs,
+  },
+  startScoringText: { color: COLORS.white, fontWeight: '700', fontSize: 14 },
+
+  scorerShareBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 8,
+  },
+  scorerShareText: { color: COLORS.accent, fontSize: 13, fontWeight: '600' },
+
   orgControls: { marginTop: SPACING.md, gap: SPACING.sm },
   closeBtn: {
     backgroundColor: COLORS.dangerLight,
-    borderWidth: 1, borderColor: COLORS.dangerBorder,
-    borderRadius: RADIUS.lg, paddingVertical: SPACING.md,
+    borderWidth: 1,
+    borderColor: COLORS.dangerBorder,
+    borderRadius: RADIUS.lg,
+    paddingVertical: SPACING.md,
     alignItems: 'center',
   },
   closeBtnText: { fontSize: 14, fontWeight: '700', color: COLORS.danger },
+
   historyBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: SPACING.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
     backgroundColor: COLORS.accentLight,
-    borderWidth: 1, borderColor: COLORS.accentBorder,
-    borderRadius: RADIUS.lg, padding: SPACING.md,
-    marginTop: SPACING.md,
+    borderWidth: 1,
+    borderColor: COLORS.accentBorder,
+    borderRadius: RADIUS.lg,
+    padding: SPACING.md,
     ...SHADOW.card,
   },
   historyBtnText: { flex: 1, fontSize: 14, fontWeight: '700', color: COLORS.accent },
 
-  // Empty
-  empty:      { flex: 1, alignItems: 'center', justifyContent: 'center', padding: SPACING.xl },
+  empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: SPACING.xl },
   emptyTitle: { fontSize: 18, fontWeight: '700', color: COLORS.text },
 });
