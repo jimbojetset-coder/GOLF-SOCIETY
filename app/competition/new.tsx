@@ -82,15 +82,7 @@ export default function NewCompetitionScreen() {
 
   // Matches
   const [matches, setMatches] = useState<MatchDraft[]>([
-    {
-      id: uid(),
-      format: 'fourball',
-      session_date: addDays(todayISO(), 7),
-      session: 'Morning',
-      scorer_player_id: null,
-      players_a: [],
-      players_b: []
-    },
+    { id: uid(), format: 'fourball', session_date: addDays(todayISO(), 7), session: 'Morning', scorer_player_id: null, players_a: [], players_b: [] },
   ]);
 
   const addMatch = () => {
@@ -99,7 +91,7 @@ export default function NewCompetitionScreen() {
       id: uid(),
       format: 'fourball',
       session_date: defaultDate,
-      session: matches.length % 2 === 0 ? 'Morning' : 'Afternoon',
+      session: 'Afternoon',
       scorer_player_id: null,
       players_a: [],
       players_b: [],
@@ -144,7 +136,7 @@ export default function NewCompetitionScreen() {
 
   const handleCreate = async () => {
     if (!user || !courseId) {
-      Alert.alert('Missing Information', 'Please select a course.');
+      Alert.alert('Missing Information', 'Please select or create a course.');
       return;
     }
     setSaving(true);
@@ -207,7 +199,7 @@ export default function NewCompetitionScreen() {
             <Text style={styles.stepTitle}>{STEP_LABELS[step]}</Text>
           </View>
 
-          {/* 2. DETAILS */}
+          {/* DETAILS */}
           {step === 'details' && (
             <View style={styles.section}>
               <Text style={styles.label}>Event Name</Text>
@@ -218,37 +210,73 @@ export default function NewCompetitionScreen() {
             </View>
           )}
 
-          {/* 3. COURSE */}
+          {/* COURSE - Full Manual + Scan + Edit */}
           {step === 'course' && (
             <View style={styles.section}>
-              <Text style={styles.sectionHint}>Add course by scanning a scorecard or manually</Text>
+              <Text style={styles.sectionHint}>Add or scan a course</Text>
+
               <TouchableOpacity style={styles.addBtn} onPress={() => setShowScanScreen(true)}>
                 <Ionicons name="scan-outline" size={20} color={COLORS.accent} />
-                <Text style={styles.addBtnText}>Scan Scorecard</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.addBtn} onPress={() => Alert.alert('Manual course', 'Full manual course creation coming soon')}>
-                <Ionicons name="create-outline" size={20} color={COLORS.accent} />
-                <Text style={styles.addBtnText}>Manual Entry</Text>
+                <Text style={styles.addBtnText}>Scan Scorecard (then edit)</Text>
               </TouchableOpacity>
 
-              {courseName && <Text style={{ color: COLORS.accent, marginTop: 16, fontWeight: '600' }}>✓ Selected: {courseName}</Text>}
+              <TouchableOpacity style={styles.addBtn} onPress={() => {
+                // Simple manual course
+                Alert.prompt(
+                  'Manual Course',
+                  'Enter course name',
+                  [
+                    { text: 'Cancel', style: 'cancel' },
+                    {
+                      text: 'Create',
+                      onPress: async (courseNameInput) => {
+                        if (!courseNameInput || !user) return;
+                        const trimmed = courseNameInput.trim();
+                        try {
+                          const { data: courseData } = await supabase
+                            .from('courses')
+                            .insert({ name: trimmed, holes_count: 18, created_by_user_id: user.id, source: 'manual' })
+                            .select()
+                            .single();
+
+                          const { data: teeData } = await supabase
+                            .from('course_tees')
+                            .insert({ course_id: courseData.id, tee_name: 'Yellow', tee_colour: 'Yellow', course_rating: 72, slope_rating: 113, total_par: 72 })
+                            .select()
+                            .single();
+
+                          setCourseId(courseData.id);
+                          setTeeId(teeData.id);
+                          setCourseName(trimmed);
+                          Alert.alert('Success', 'Course created');
+                        } catch (e) {
+                          Alert.alert('Error', 'Could not create course');
+                        }
+                      }
+                    }
+                  ]
+                );
+              }}>
+                <Ionicons name="create-outline" size={20} color={COLORS.accent} />
+                <Text style={styles.addBtnText}>Manual Course Entry</Text>
+              </TouchableOpacity>
+
+              {courseName && <Text style={{ color: COLORS.accent, marginTop: 12, fontWeight: '600' }}>✓ {courseName}</Text>}
             </View>
           )}
 
-          {/* 4. TEAMS */}
+          {/* TEAMS, DATES, PLAYERS, MATCHES, REVIEW ... (same as before) */}
           {step === 'teams' && (
             <View style={styles.section}>
               <Text style={styles.label}>Team A</Text>
               <TextInput style={styles.input} value={teamAName} onChangeText={setTeamAName} />
               <ColourPicker color={teamAColour} onChange={setTeamAColour} />
-
               <Text style={styles.label}>Team B</Text>
               <TextInput style={styles.input} value={teamBName} onChangeText={setTeamBName} />
               <ColourPicker color={teamBColour} onChange={setTeamBColour} />
             </View>
           )}
 
-          {/* 5. DATES */}
           {step === 'dates' && (
             <View style={styles.section}>
               <DatePicker label="Start Date" value={startDate} onChange={setStartDate} />
@@ -256,60 +284,32 @@ export default function NewCompetitionScreen() {
             </View>
           )}
 
-          {/* 6. PLAYERS */}
           {step === 'players' && (
             <View style={styles.section}>
-              {players.map(player => (
-                <PlayerEntry
-                  key={player.id}
-                  player={player}
-                  onUpdate={data => updatePlayer(player.id, data)}
-                  onRemove={() => removePlayer(player.id)}
-                  teamAName={teamAName}
-                  teamBName={teamBName}
-                />
+              {players.map(p => (
+                <PlayerEntry key={p.id} player={p} onUpdate={d => updatePlayer(p.id, d)} onRemove={() => removePlayer(p.id)} teamAName={teamAName} teamBName={teamBName} />
               ))}
               <View style={{ flexDirection: 'row', gap: 12 }}>
-                <TouchableOpacity style={styles.addBtn} onPress={() => addPlayer('A')}>
-                  <Text style={styles.addBtnText}>+ Team A Player</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.addBtn} onPress={() => addPlayer('B')}>
-                  <Text style={styles.addBtnText}>+ Team B Player</Text>
-                </TouchableOpacity>
+                <TouchableOpacity style={styles.addBtn} onPress={() => addPlayer('A')}><Text style={styles.addBtnText}>+ Team A</Text></TouchableOpacity>
+                <TouchableOpacity style={styles.addBtn} onPress={() => addPlayer('B')}><Text style={styles.addBtnText}>+ Team B</Text></TouchableOpacity>
               </View>
             </View>
           )}
 
-          {/* 7. MATCHES */}
           {step === 'matches' && (
             <View style={styles.section}>
-              <Text style={styles.sectionHint}>Add matches and assign dates</Text>
               {matches.map((m, i) => (
-                <MatchEntry
-                  key={m.id}
-                  match={m}
-                  matchNumber={i + 1}
-                  eventDays={eventDays}
-                  players={players}
-                  teamAName={teamAName}
-                  teamBName={teamBName}
-                  teamAColour={teamAColour}
-                  teamBColour={teamBColour}
-                  onUpdate={data => updateMatch(m.id, data)}
-                  onRemove={() => removeMatch(m.id)}
-                />
+                <MatchEntry key={m.id} match={m} matchNumber={i+1} eventDays={eventDays} players={players} teamAName={teamAName} teamBName={teamBName} teamAColour={teamAColour} teamBColour={teamBColour} onUpdate={d => updateMatch(m.id, d)} onRemove={() => removeMatch(m.id)} />
               ))}
               <TouchableOpacity style={styles.addBtn} onPress={addMatch}>
                 <Ionicons name="add-circle-outline" size={18} color={COLORS.accent} />
-                <Text style={styles.addBtnText}>Add Another Match</Text>
+                <Text style={styles.addBtnText}>Add Match</Text>
               </TouchableOpacity>
             </View>
           )}
 
-          {/* 8. REVIEW */}
           {step === 'review' && (
             <View style={styles.section}>
-              <Text style={styles.label}>Review your competition</Text>
               <Text style={{ fontSize: 18, fontWeight: '700' }}>{name}</Text>
               <Text>Course: {courseName || 'Not selected'}</Text>
               <Text>Dates: {startDate} – {endDate}</Text>
@@ -320,11 +320,7 @@ export default function NewCompetitionScreen() {
 
           <View style={styles.ctaRow}>
             {step !== 'review' ? (
-              <TouchableOpacity
-                style={[styles.nextBtn, !canProceed() && styles.nextBtnDisabled]}
-                onPress={next}
-                disabled={!canProceed()}
-              >
+              <TouchableOpacity style={[styles.nextBtn, !canProceed() && styles.nextBtnDisabled]} onPress={next} disabled={!canProceed()}>
                 <Text style={styles.nextBtnText}>Continue</Text>
                 <Ionicons name="arrow-forward" size={18} color="#fff" />
               </TouchableOpacity>
