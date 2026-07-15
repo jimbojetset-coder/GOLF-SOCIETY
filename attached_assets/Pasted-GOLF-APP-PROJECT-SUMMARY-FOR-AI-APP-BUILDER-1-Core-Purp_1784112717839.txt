@@ -1,0 +1,242 @@
+GOLF APP – PROJECT SUMMARY FOR AI APP BUILDER
+1. Core Purpose
+A mobile app for Ryder‑Cup–style golf events with:
+
+Team creation
+
+Event creation
+
+Player management
+
+Live scoring
+
+User‑submitted course data
+
+AI scorecard extraction (OCR)
+
+The app is not a GPS tracker or handicap service.
+It is an event + team scoring platform.
+
+2. Key Features
+A. Course Management
+Users can add courses manually
+
+OR upload a photo of a scorecard
+
+AI extracts:
+
+Hole numbers
+
+Par
+
+Yardage
+
+Stroke Index
+
+Tee names
+
+User confirms/edit before saving
+
+Stored in database as:
+
+Course
+
+Tees
+
+Holes
+
+No mapping, no GPS, no licensed data.
+
+B. Player Management
+Add players with:
+
+Name
+
+Handicap index
+
+App calculates course handicap automatically
+
+Players can be assigned to teams for events
+
+C. Event Management
+Supports:
+
+Ryder Cup style events
+
+Fourball
+
+Foursomes
+
+Singles
+
+Scramble (optional)
+
+Event includes:
+
+Teams (A & B)
+
+Players assigned to each team
+
+Matches created manually
+
+Tee set selection
+
+Event date + name
+
+D. Live Scoring
+Real‑time scoring for each match:
+
+Hole‑by‑hole score entry
+
+Gross → Net calculation (if needed)
+
+Match status:
+
+A 1UP
+
+B 2UP
+
+All Square
+
+Dormie
+
+Final result (e.g., 3&2)
+
+Event scoreboard:
+
+Total team points
+
+Match tiles with live status
+
+Session breakdown (AM/PM)
+
+3. Live Scoring Layout (UI Summary)
+Event Overview Screen
+Team A vs Team B with total points
+
+Session cards (Fourball, Singles, etc.)
+
+List of matches with:
+
+Match type
+
+Players
+
+Status chip (1UP, AS, etc.)
+
+“Through X” indicator
+
+Match Detail Screen
+Match type
+
+Player names
+
+Current status
+
+Hole‑by‑hole timeline:
+
+Scores
+
+Hole result
+
+Colour indicators
+
+Score Entry Screen
+Hole number
+
+Par + SI
+
+Player score selectors
+
+/ – buttons
+
+Save & Next Hole
+
+Offline‑first scoring
+
+4. Backend Architecture
+Recommended Stack
+Supabase (Free Tier)
+
+Postgres database
+
+Realtime listeners
+
+Auth
+
+Edge functions
+
+Expo / React Native for mobile app
+
+Vercel for optional admin web panel
+
+Database Tables
+users
+
+players
+
+courses
+
+course_tees
+
+course_holes
+
+events
+
+event_teams
+
+event_team_players
+
+matches
+
+match_players
+
+match_scores
+
+match_state (computed or stored)
+
+5. AI Usage
+Only used for scorecard extraction, not mapping.
+
+AI Tasks:
+OCR scorecard image
+
+Parse into structured JSON
+
+Validate data
+
+Return to user for confirmation
+
+No GPS, no hole mapping, no external course APIs.
+
+6. Free‑Tier Compatibility
+Everything runs on:
+
+Supabase free tier
+
+Expo
+
+Vercel
+
+Free OCR/LLM usage (low volume)
+
+No licensing fees.
+No paid APIs required.
+
+7. Unique Selling Points
+AI scorecard extraction
+
+Ryder Cup team formats
+
+Live team scoring
+
+Offline‑first scoring
+
+User‑submitted course data
+
+Modern, simple UI
+
+Zero licensing requirements
+
+Reply
+
