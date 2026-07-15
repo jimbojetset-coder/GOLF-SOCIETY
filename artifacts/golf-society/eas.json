@@ -1,0 +1,37 @@
+{
+  "cli": {
+    "version": ">= 7.0.0",
+    "appVersionSource": "local"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      }
+    },
+    "preview": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_SUPABASE_URL": "https://ffkrwdvevjuloyxnliga.supabase.co",
+        "YARN_IGNORE_ENGINES": "true"
+      }
+    },
+    "production": {
+      "android": {
+        "buildType": "app-bundle"
+      },
+      "env": {
+        "EXPO_PUBLIC_SUPABASE_URL": "https://ffkrwdvevjuloyxnliga.supabase.co",
+        "YARN_IGNORE_ENGINES": "true"
+      }
+    }
+  },
+  "submit": {
+    "production": {}
+  }
+}

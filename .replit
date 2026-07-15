@@ -18,3 +18,9 @@ expertMode = true
 [postMerge]
 path = "scripts/post-merge.sh"
 timeoutMs = 20000
+
+[userenv]
+
+[userenv.shared]
+EXPO_PUBLIC_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZma3J3ZHZldmp1bG95eG5saWdhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk0NzIxOTgsImV4cCI6MjA5NTA0ODE5OH0.lcUJvWeoHBsK1s3aLyxykqlxk1bIZUr_EBkIxquDRdg"
+EXPO_PUBLIC_SUPABASE_URL = "https://ffkrwdvevjuloyxnliga.supabase.co"
