@@ -3,9 +3,10 @@
  */
 import React, { useState } from 'react';
 import {
-  View, Text, StyleSheet, SafeAreaView, TouchableOpacity,
+  View, Text, StyleSheet, TouchableOpacity,
   ScrollView, ActivityIndicator, TextInput, Alert, Image,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../api/supabase';
 import { useAuth } from '../hooks/useAuth';
@@ -28,6 +29,13 @@ export default function ScorecardScanScreen({ onConfirm, onCancel }: Props) {
   const [editedName, setEditedName] = useState('');
   const [editedHoles, setEditedHoles] = useState<ExtractedHole[]>([]);
   const [saving, setSaving] = useState(false);
+
+  // Tee details — editable in review step
+  const [manualTeeName, setManualTeeName] = useState('Yellow');
+  const [manualTeeColour, setManualTeeColour] = useState('Yellow');
+  const [manualSlopeRating, setManualSlopeRating] = useState('113');
+  const [manualCourseRating, setManualCourseRating] = useState('72.0');
+  const [manualTotalPar, setManualTotalPar] = useState('72');
 
   // ── Scan Flow ─────────────────────────────────────────────
   const handleScan = async (source: 'camera' | 'library') => {
@@ -65,6 +73,9 @@ export default function ScorecardScanScreen({ onConfirm, onCancel }: Props) {
     setStep('saving');
 
     const courseName = editedName.trim() || (scanResult?.extracted.course_name ?? 'Manual Course');
+    const teeName = scanResult
+      ? (scanResult.extracted.tees[selectedTeeIdx]?.tee_name || manualTeeName)
+      : manualTeeName;
 
     try {
       const { data: courseData, error: courseErr } = await supabase
@@ -80,17 +91,15 @@ export default function ScorecardScanScreen({ onConfirm, onCancel }: Props) {
         .single();
       if (courseErr) throw courseErr;
 
-      const teeName = scanResult?.extracted.tees[selectedTeeIdx]?.tee_name || 'Yellow';
-
       const { data: teeData, error: teeErr } = await supabase
         .from('course_tees')
         .insert({
           course_id: courseData.id,
           tee_name: teeName,
           tee_colour: teeName,
-          course_rating: 72,
-          slope_rating: 113,
-          total_par: 72,
+          course_rating: parseFloat(manualCourseRating) || 72,
+          slope_rating: parseInt(manualSlopeRating) || 113,
+          total_par: parseInt(manualTotalPar) || 72,
         })
         .select()
         .single();
@@ -128,6 +137,19 @@ export default function ScorecardScanScreen({ onConfirm, onCancel }: Props) {
     setEditedHoles(prev =>
       prev.map(h =>
         h.hole_number === holeNumber ? { ...h, [field]: Math.max(1, Math.min(field === 'par' ? 9 : 18, value || 1)) } : h
+      )
+    );
+  };
+
+  const updateHoleYards = (holeNumber: number, yardsStr: string) => {
+    const teeKey = scanResult
+      ? (scanResult.extracted.tees[selectedTeeIdx]?.tee_name ?? manualTeeName)
+      : manualTeeName;
+    setEditedHoles(prev =>
+      prev.map(h =>
+        h.hole_number === holeNumber
+          ? { ...h, yards_by_tee: { ...h.yards_by_tee, [teeKey]: parseInt(yardsStr) || 0 } }
+          : h
       )
     );
   };
@@ -233,6 +255,66 @@ export default function ScorecardScanScreen({ onConfirm, onCancel }: Props) {
             />
           </View>
 
+          {/* Tee Details */}
+          <View style={styles.reviewSection}>
+            <Text style={styles.reviewSectionTitle}>Tee Details</Text>
+            <View style={styles.teeGrid}>
+              <View style={styles.teeField}>
+                <Text style={styles.teeFieldLabel}>Tee Name</Text>
+                <TextInput
+                  style={styles.teeInput}
+                  value={manualTeeName}
+                  onChangeText={setManualTeeName}
+                  placeholder="e.g. Yellow"
+                  placeholderTextColor={COLORS.textMuted}
+                />
+              </View>
+              <View style={styles.teeField}>
+                <Text style={styles.teeFieldLabel}>Colour</Text>
+                <TextInput
+                  style={styles.teeInput}
+                  value={manualTeeColour}
+                  onChangeText={setManualTeeColour}
+                  placeholder="e.g. Yellow"
+                  placeholderTextColor={COLORS.textMuted}
+                />
+              </View>
+              <View style={styles.teeField}>
+                <Text style={styles.teeFieldLabel}>Course Rating</Text>
+                <TextInput
+                  style={styles.teeInput}
+                  value={manualCourseRating}
+                  onChangeText={setManualCourseRating}
+                  placeholder="72.0"
+                  placeholderTextColor={COLORS.textMuted}
+                  keyboardType="decimal-pad"
+                />
+              </View>
+              <View style={styles.teeField}>
+                <Text style={styles.teeFieldLabel}>Slope Rating</Text>
+                <TextInput
+                  style={styles.teeInput}
+                  value={manualSlopeRating}
+                  onChangeText={setManualSlopeRating}
+                  placeholder="113"
+                  placeholderTextColor={COLORS.textMuted}
+                  keyboardType="number-pad"
+                />
+              </View>
+              <View style={styles.teeField}>
+                <Text style={styles.teeFieldLabel}>Total Par</Text>
+                <TextInput
+                  style={styles.teeInput}
+                  value={manualTotalPar}
+                  onChangeText={setManualTotalPar}
+                  placeholder="72"
+                  placeholderTextColor={COLORS.textMuted}
+                  keyboardType="number-pad"
+                />
+              </View>
+            </View>
+          </View>
+
           {/* Editable Holes Table */}
           <View style={styles.reviewSection}>
             <Text style={styles.reviewSectionTitle}>Holes — Tap fields to edit</Text>
@@ -241,12 +323,11 @@ export default function ScorecardScanScreen({ onConfirm, onCancel }: Props) {
                 <Text style={[styles.holeCell, styles.holeCellHeader, { flex: 0.6 }]}>Hole</Text>
                 <Text style={[styles.holeCell, styles.holeCellHeader]}>Par</Text>
                 <Text style={[styles.holeCell, styles.holeCellHeader]}>SI</Text>
-                <Text style={[styles.holeCell, styles.holeCellHeader]}>Yards</Text>
+                <Text style={[styles.holeCell, styles.holeCellHeader]}>Yds</Text>
               </View>
               {currentHoles.map((h, i) => (
                 <View key={h.hole_number} style={[styles.holeRow, i % 2 === 0 && styles.holeRowAlt]}>
                   <Text style={[styles.holeCell, { flex: 0.6, fontWeight: '700', color: COLORS.accent }]}>{h.hole_number}</Text>
-                  
                   <TextInput
                     style={styles.holeInput}
                     value={h.par.toString()}
@@ -261,9 +342,15 @@ export default function ScorecardScanScreen({ onConfirm, onCancel }: Props) {
                     keyboardType="number-pad"
                     maxLength={2}
                   />
-                  <Text style={[styles.holeCell, { color: COLORS.textSecondary }]}>
-                    {h.yards_by_tee?.[tee.tee_name] ?? '—'}
-                  </Text>
+                  <TextInput
+                    style={[styles.holeInput, { color: COLORS.textSecondary }]}
+                    value={String(h.yards_by_tee?.[manualTeeName] ?? '')}
+                    onChangeText={(v) => updateHoleYards(h.hole_number, v)}
+                    keyboardType="number-pad"
+                    maxLength={4}
+                    placeholder="—"
+                    placeholderTextColor={COLORS.textMuted}
+                  />
                 </View>
               ))}
             </View>
@@ -378,4 +465,15 @@ const styles = StyleSheet.create({
     gap: 6, padding: SPACING.md,
   },
   rescanText: { fontSize: 13, color: COLORS.textSecondary },
+
+  // Tee details form
+  teeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm },
+  teeField: { minWidth: '45%', flex: 1 },
+  teeFieldLabel: { fontSize: 10, fontWeight: '700', color: COLORS.textMuted, letterSpacing: 0.6, marginBottom: 4 },
+  teeInput: {
+    backgroundColor: COLORS.surfaceHigh, borderRadius: RADIUS.sm,
+    borderWidth: 1, borderColor: COLORS.border,
+    paddingHorizontal: SPACING.sm, paddingVertical: 8,
+    color: COLORS.text, fontSize: 14, fontWeight: '600',
+  },
 });
