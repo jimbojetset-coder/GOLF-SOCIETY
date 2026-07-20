@@ -4,8 +4,9 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity,
-  StyleSheet, SafeAreaView, ActivityIndicator, StatusBar,
+  StyleSheet, ActivityIndicator, StatusBar, Alert,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase, parseLocalDate } from '../../src/api/supabase';
@@ -28,6 +29,24 @@ export default function HistoryTab() {
       .order('start_date', { ascending: false });
     if (data) setCompetitions(data);
     setLoading(false);
+  };
+
+  const deleteCompetition = (item: any) => {
+    Alert.alert(
+      'Delete Competition?',
+      `This will permanently delete "${item.name}" and all its data.\n\nThis cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete', style: 'destructive',
+          onPress: async () => {
+            const { error } = await supabase.from('competitions').delete().eq('id', item.id);
+            if (error) Alert.alert('Error', 'Failed to delete');
+            else load();
+          },
+        },
+      ]
+    );
   };
 
   const renderCard = ({ item }: { item: any }) => {
@@ -81,10 +100,17 @@ export default function HistoryTab() {
           </View>
         )}
 
-        {/* View link */}
+        {/* Footer: view stats + delete */}
         <View style={styles.cardFooter}>
           <Text style={styles.viewLink}>View stats</Text>
           <Ionicons name="chevron-forward" size={14} color={COLORS.accent} />
+          <TouchableOpacity
+            onPress={(e) => { e.stopPropagation?.(); deleteCompetition(item); }}
+            style={styles.deleteBtn}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons name="trash-outline" size={16} color={COLORS.danger} />
+          </TouchableOpacity>
         </View>
       </TouchableOpacity>
     );
@@ -160,8 +186,9 @@ const styles = StyleSheet.create({
   winnerEmoji: { fontSize: 16 },
   winnerText:  { fontSize: 13, color: COLORS.text },
 
-  cardFooter: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  viewLink:   { fontSize: 13, fontWeight: '600', color: COLORS.accent },
+  cardFooter: { flexDirection: 'row', alignItems: 'center', gap: 4, flex: 1 },
+  viewLink:   { fontSize: 13, fontWeight: '600', color: COLORS.accent, flex: 1 },
+  deleteBtn:  { padding: 4, marginLeft: SPACING.sm },
 
   empty:         { flex: 1, justifyContent: 'center', alignItems: 'center', padding: SPACING.xl, gap: SPACING.sm },
   emptyEmoji:    { fontSize: 56, marginBottom: SPACING.sm },

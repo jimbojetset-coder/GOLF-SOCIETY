@@ -60,7 +60,7 @@ export function calcFinalStatus(
  *      "A/S"        → { label: 'A/S', leader: null }
  */
 export function parseStoredResult(
-  result: string,
+  result: string | null | undefined,
   teamAName: string,
   teamBName: string,
 ): MatchStatusResult {
