@@ -1,6 +1,9 @@
 import { useEffect } from 'react';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { ErrorBoundary } from '../components/ErrorBoundary';
 import { useAuth } from '../src/hooks/useAuth';
 import { useJoinCompetition } from '../src/hooks/useJoinCompetition';
 
@@ -12,7 +15,7 @@ export function setPendingShareToken(token: string | undefined) {
   pendingShareToken = token;
 }
 
-export default function RootLayout() {
+function Navigation() {
   const { session, loading } = useAuth();
   const segments = useSegments();
   const router   = useRouter();
@@ -45,5 +48,17 @@ export default function RootLayout() {
       <StatusBar style="dark" />
       <Stack screenOptions={{ headerShown: false }} />
     </>
+  );
+}
+
+export default function RootLayout() {
+  return (
+    <ErrorBoundary>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <SafeAreaProvider>
+          <Navigation />
+        </SafeAreaProvider>
+      </GestureHandlerRootView>
+    </ErrorBoundary>
   );
 }

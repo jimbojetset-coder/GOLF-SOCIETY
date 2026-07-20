@@ -227,7 +227,7 @@ export default function ScoringCardLayout({
         </View>
 
         {/* ── Player rows ── */}
-        {matchPlayers.map(({ player, scoreField }) => {
+        {matchPlayers.map(({ player, scoreField, teamName }) => {
           const score = hole[scoreField] as number | null;
           return (
             <PlayerRow

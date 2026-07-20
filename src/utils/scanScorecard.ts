@@ -10,7 +10,7 @@
  */
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { Alert } from 'react-native';
 import { supabase } from '../api/supabase';
 
@@ -72,8 +72,8 @@ export async function scanScorecard(
 
   // 2. Pick / shoot
   const result = source === 'camera'
-    ? await ImagePicker.launchCameraAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 1 })
-    : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 1 });
+    ? await ImagePicker.launchCameraAsync({ mediaTypes: 'images', quality: 1 })
+    : await ImagePicker.launchImageLibraryAsync({ mediaTypes: 'images', quality: 1 });
 
   if (result.canceled || !result.assets[0]) return null;
   const asset = result.assets[0];

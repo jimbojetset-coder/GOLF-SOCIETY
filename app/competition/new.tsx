@@ -1,9 +1,10 @@
 import React, { useState, useRef } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, ScrollView, Switch,
-  StyleSheet, SafeAreaView, Alert, ActivityIndicator,
-  KeyboardAvoidingView, Platform,
+  StyleSheet, Alert, ActivityIndicator,
+  KeyboardAvoidingView, Platform, Modal,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../../src/api/supabase';
@@ -42,6 +43,12 @@ export default function NewCompetitionScreen() {
   const [step, setStep] = useState<Step>('details');
   const [saving, setSaving] = useState(false);
   const [showScanScreen, setShowScanScreen] = useState(false);
+
+  // Saved course selector
+  const [showCourseSelector, setShowCourseSelector] = useState(false);
+  const [savedCourses, setSavedCourses] = useState<any[]>([]);
+  const [loadingCourses, setLoadingCourses] = useState(false);
+  const [expandedCourseId, setExpandedCourseId] = useState<string | null>(null);
 
   // Form State
   const [name, setName] = useState('');
@@ -134,13 +141,41 @@ export default function NewCompetitionScreen() {
     }
   };
 
+  const openCourseSelector = async () => {
+    setShowCourseSelector(true);
+    setExpandedCourseId(null);
+    setLoadingCourses(true);
+    const { data } = await supabase.from('courses').select('*, course_tees(*)').order('name');
+    setSavedCourses(data ?? []);
+    setLoadingCourses(false);
+  };
+
   const handleCreate = async () => {
     if (!user || !courseId) {
-      Alert.alert('Missing Information', 'Please select or create a course.');
+      Alert.alert('Missing Information', 'Please select or create a course first.');
       return;
     }
     setSaving(true);
     try {
+      // 1. Insert all named players into the DB
+      const validPlayers = players.filter(p => p.name?.trim());
+      if (validPlayers.length < 2) throw new Error('At least 2 players are required');
+
+      const { data: dbPlayers, error: pErr } = await supabase
+        .from('players')
+        .insert(validPlayers.map(p => ({
+          name: p.name.trim(),
+          handicap_index: parseFloat(String(p.handicap_index)) || 0,
+          created_by_user_id: user.id,
+        })))
+        .select();
+      if (pErr || !dbPlayers) throw pErr ?? new Error('Failed to insert players');
+
+      // Map local draft ID → DB UUID
+      const pidMap: Record<string, string> = {};
+      validPlayers.forEach((p, i) => { pidMap[p.id] = dbPlayers[i]?.id ?? ''; });
+
+      // 2. Create competition
       const shareToken = uid();
       const { data: comp, error } = await supabase
         .from('competitions')
@@ -167,13 +202,46 @@ export default function NewCompetitionScreen() {
         })
         .select()
         .single();
+      if (error || !comp) throw error ?? new Error('Failed to create competition');
 
-      if (error || !comp) throw error;
+      // 3. Create each match with a scorer_share_token + its players
+      for (let i = 0; i < matches.length; i++) {
+        const m = matches[i];
+        const scorerToken = uid();
+        const { data: dbMatch, error: mErr } = await supabase
+          .from('matches')
+          .insert({
+            competition_id: comp.id,
+            match_number: i + 1,
+            format: m.format,
+            session: m.session,
+            session_date: m.session_date,
+            status: 'pending',
+            scorer_share_token: scorerToken,
+            tee_id: teeId,
+            holes_played: 0,
+            points_a: 0,
+            points_b: 0,
+          })
+          .select()
+          .single();
+        if (mErr || !dbMatch) throw mErr ?? new Error(`Failed to create match ${i + 1}`);
 
-      Alert.alert('Success', 'Competition created!');
-      router.replace(`/(tabs)/leaderboard?competitionId=${comp.id}`);
+        const aRows = (m.players_a ?? [])
+          .map((lid: string) => pidMap[lid]).filter(Boolean)
+          .map((pid: string) => ({ match_id: dbMatch.id, player_id: pid, team: 'A', playing_handicap: 0 }));
+        const bRows = (m.players_b ?? [])
+          .map((lid: string) => pidMap[lid]).filter(Boolean)
+          .map((pid: string) => ({ match_id: dbMatch.id, player_id: pid, team: 'B', playing_handicap: 0 }));
+        const mpRows = [...aRows, ...bRows];
+        if (mpRows.length > 0) {
+          await supabase.from('match_players').insert(mpRows);
+        }
+      }
+
+      router.replace(`/competition/${comp.id}`);
     } catch (err: any) {
-      Alert.alert('Error', err?.message ?? 'Failed to create');
+      Alert.alert('Error', err?.message ?? 'Failed to create competition');
     } finally {
       setSaving(false);
     }
@@ -206,62 +274,39 @@ export default function NewCompetitionScreen() {
               <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="Ryder Cup 2026" />
               <Text style={styles.label}>Notes (optional)</Text>
               <TextInput style={[styles.input, { height: 100 }]} value={notes} onChangeText={setNotes} multiline />
-              <HeroImagePicker onImageSelected={setHeroImageUrl} initialUrl={heroImageUrl} />
+              <HeroImagePicker value={heroImageUrl} onChange={setHeroImageUrl} />
             </View>
           )}
 
-          {/* COURSE - Full Manual + Scan + Edit */}
+          {/* COURSE */}
           {step === 'course' && (
             <View style={styles.section}>
-              <Text style={styles.sectionHint}>Add or scan a course</Text>
+              <Text style={styles.sectionHint}>
+                Course details (holes, par, stroke index) must be complete before adding players
+              </Text>
 
+              {/* Selected course banner */}
+              {courseName ? (
+                <View style={styles.courseSelectedBanner}>
+                  <Ionicons name="checkmark-circle" size={20} color={COLORS.accent} />
+                  <Text style={styles.courseSelectedName} numberOfLines={1}>{courseName}</Text>
+                  <TouchableOpacity onPress={() => { setCourseId(null); setTeeId(null); setCourseName(''); }}>
+                    <Ionicons name="close-circle-outline" size={20} color={COLORS.textMuted} />
+                  </TouchableOpacity>
+                </View>
+              ) : null}
+
+              {/* Option 1: Saved courses from DB */}
+              <TouchableOpacity style={styles.addBtn} onPress={openCourseSelector}>
+                <Ionicons name="library-outline" size={20} color={COLORS.accent} />
+                <Text style={styles.addBtnText}>Choose Saved Course</Text>
+              </TouchableOpacity>
+
+              {/* Option 2: Scan or manual entry (full hole details via ScorecardScanScreen) */}
               <TouchableOpacity style={styles.addBtn} onPress={() => setShowScanScreen(true)}>
                 <Ionicons name="scan-outline" size={20} color={COLORS.accent} />
-                <Text style={styles.addBtnText}>Scan Scorecard (then edit)</Text>
+                <Text style={styles.addBtnText}>Scan Scorecard or Enter Manually</Text>
               </TouchableOpacity>
-
-              <TouchableOpacity style={styles.addBtn} onPress={() => {
-                // Simple manual course
-                Alert.prompt(
-                  'Manual Course',
-                  'Enter course name',
-                  [
-                    { text: 'Cancel', style: 'cancel' },
-                    {
-                      text: 'Create',
-                      onPress: async (courseNameInput) => {
-                        if (!courseNameInput || !user) return;
-                        const trimmed = courseNameInput.trim();
-                        try {
-                          const { data: courseData } = await supabase
-                            .from('courses')
-                            .insert({ name: trimmed, holes_count: 18, created_by_user_id: user.id, source: 'manual' })
-                            .select()
-                            .single();
-
-                          const { data: teeData } = await supabase
-                            .from('course_tees')
-                            .insert({ course_id: courseData.id, tee_name: 'Yellow', tee_colour: 'Yellow', course_rating: 72, slope_rating: 113, total_par: 72 })
-                            .select()
-                            .single();
-
-                          setCourseId(courseData.id);
-                          setTeeId(teeData.id);
-                          setCourseName(trimmed);
-                          Alert.alert('Success', 'Course created');
-                        } catch (e) {
-                          Alert.alert('Error', 'Could not create course');
-                        }
-                      }
-                    }
-                  ]
-                );
-              }}>
-                <Ionicons name="create-outline" size={20} color={COLORS.accent} />
-                <Text style={styles.addBtnText}>Manual Course Entry</Text>
-              </TouchableOpacity>
-
-              {courseName && <Text style={{ color: COLORS.accent, marginTop: 12, fontWeight: '600' }}>✓ {courseName}</Text>}
             </View>
           )}
 
@@ -270,10 +315,10 @@ export default function NewCompetitionScreen() {
             <View style={styles.section}>
               <Text style={styles.label}>Team A</Text>
               <TextInput style={styles.input} value={teamAName} onChangeText={setTeamAName} />
-              <ColourPicker color={teamAColour} onChange={setTeamAColour} />
+              <ColourPicker value={teamAColour} onChange={setTeamAColour} />
               <Text style={styles.label}>Team B</Text>
               <TextInput style={styles.input} value={teamBName} onChangeText={setTeamBName} />
-              <ColourPicker color={teamBColour} onChange={setTeamBColour} />
+              <ColourPicker value={teamBColour} onChange={setTeamBColour} />
             </View>
           )}
 
@@ -287,7 +332,7 @@ export default function NewCompetitionScreen() {
           {step === 'players' && (
             <View style={styles.section}>
               {players.map(p => (
-                <PlayerEntry key={p.id} player={p} onUpdate={d => updatePlayer(p.id, d)} onRemove={() => removePlayer(p.id)} teamAName={teamAName} teamBName={teamBName} />
+                <PlayerEntry key={p.id} player={p} onUpdate={d => updatePlayer(p.id, d)} onRemove={() => removePlayer(p.id)} teamAName={teamAName} teamBName={teamBName} teamAColour={teamAColour} teamBColour={teamBColour} />
               ))}
               <View style={{ flexDirection: 'row', gap: 12 }}>
                 <TouchableOpacity style={styles.addBtn} onPress={() => addPlayer('A')}><Text style={styles.addBtnText}>+ Team A</Text></TouchableOpacity>
@@ -310,11 +355,33 @@ export default function NewCompetitionScreen() {
 
           {step === 'review' && (
             <View style={styles.section}>
-              <Text style={{ fontSize: 18, fontWeight: '700' }}>{name}</Text>
-              <Text>Course: {courseName || 'Not selected'}</Text>
-              <Text>Dates: {startDate} – {endDate}</Text>
-              <Text>Players: {players.filter(p => p.name?.trim()).length}</Text>
-              <Text>Matches: {matches.length}</Text>
+              <View style={styles.reviewCard}>
+                <Text style={styles.reviewEventName}>{name}</Text>
+                <View style={styles.reviewRows}>
+                  <View style={styles.reviewRow}>
+                    <Ionicons name="golf-outline" size={15} color={COLORS.textMuted} />
+                    <Text style={styles.reviewRowText}>{courseName || 'No course selected'}</Text>
+                  </View>
+                  <View style={styles.reviewRow}>
+                    <Ionicons name="calendar-outline" size={15} color={COLORS.textMuted} />
+                    <Text style={styles.reviewRowText}>{startDate} – {endDate}</Text>
+                  </View>
+                  <View style={styles.reviewRow}>
+                    <Ionicons name="people-outline" size={15} color={COLORS.textMuted} />
+                    <Text style={styles.reviewRowText}>{players.filter(p => p.name?.trim()).length} players · {matches.length} {matches.length === 1 ? 'match' : 'matches'}</Text>
+                  </View>
+                  <View style={styles.reviewRow}>
+                    <View style={[styles.reviewDot, { backgroundColor: teamAColour }]} />
+                    <Text style={[styles.reviewRowText, { color: teamAColour }]}>{teamAName}</Text>
+                    <Text style={styles.reviewRowText}> vs </Text>
+                    <View style={[styles.reviewDot, { backgroundColor: teamBColour }]} />
+                    <Text style={[styles.reviewRowText, { color: teamBColour }]}>{teamBName}</Text>
+                  </View>
+                </View>
+              </View>
+              <Text style={styles.reviewHint}>
+                Each match will get a unique scorer link you can share with the scorer after creation.
+              </Text>
             </View>
           )}
 
@@ -344,6 +411,78 @@ export default function NewCompetitionScreen() {
           onCancel={() => setShowScanScreen(false)}
         />
       )}
+
+      {/* Course Selector Modal */}
+      <Modal
+        visible={showCourseSelector}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowCourseSelector(false)}
+      >
+        <SafeAreaView style={styles.selectorContainer}>
+          <View style={styles.selectorHeader}>
+            <Text style={styles.selectorTitle}>Choose Course</Text>
+            <TouchableOpacity onPress={() => setShowCourseSelector(false)}>
+              <Ionicons name="close" size={24} color={COLORS.text} />
+            </TouchableOpacity>
+          </View>
+          {loadingCourses ? (
+            <ActivityIndicator color={COLORS.accent} style={{ marginTop: 48 }} />
+          ) : savedCourses.length === 0 ? (
+            <View style={styles.selectorEmpty}>
+              <Text style={styles.selectorEmptyText}>
+                No saved courses yet.{'\n'}Scan or manually enter a course first.
+              </Text>
+            </View>
+          ) : (
+            <ScrollView contentContainerStyle={{ padding: SPACING.md, gap: SPACING.sm }}>
+              {savedCourses.map(course => (
+                <View key={course.id} style={styles.courseSelectorCard}>
+                  <TouchableOpacity
+                    style={styles.courseSelectorHeader}
+                    onPress={() => setExpandedCourseId(expandedCourseId === course.id ? null : course.id)}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.courseSelectorName}>{course.name}</Text>
+                      <Text style={styles.courseSelectorMeta}>
+                        {course.holes_count ?? 18} holes · {(course.course_tees ?? []).length} tee{(course.course_tees ?? []).length !== 1 ? 's' : ''}
+                      </Text>
+                    </View>
+                    <Ionicons
+                      name={expandedCourseId === course.id ? 'chevron-up' : 'chevron-down'}
+                      size={18} color={COLORS.textMuted}
+                    />
+                  </TouchableOpacity>
+                  {expandedCourseId === course.id && (
+                    <View style={styles.teesRow}>
+                      {(course.course_tees ?? []).length === 0 ? (
+                        <Text style={{ color: COLORS.textMuted, fontSize: 12 }}>No tees saved for this course</Text>
+                      ) : (course.course_tees ?? []).map((tee: any) => (
+                        <TouchableOpacity
+                          key={tee.id}
+                          style={[styles.teePill, teeId === tee.id && styles.teePillSelected]}
+                          onPress={() => {
+                            setCourseId(course.id);
+                            setTeeId(tee.id);
+                            setCourseName(`${course.name} · ${tee.tee_name}`);
+                            setShowCourseSelector(false);
+                            setExpandedCourseId(null);
+                          }}
+                        >
+                          <Text style={[styles.teePillText, teeId === tee.id && styles.teePillTextSelected]}>
+                            {tee.tee_name}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
+                </View>
+              ))}
+              <View style={{ height: SPACING.xl }} />
+            </ScrollView>
+          )}
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -365,7 +504,36 @@ const styles = StyleSheet.create({
   addBtnText: { fontWeight: '600' },
   ctaRow: { marginTop: SPACING.xl },
   nextBtn: { backgroundColor: COLORS.accent, borderRadius: RADIUS.lg, paddingVertical: SPACING.md, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8 },
+  nextBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
   createBtn: { backgroundColor: COLORS.accent, borderRadius: RADIUS.lg, paddingVertical: SPACING.md, alignItems: 'center' },
   nextBtnDisabled: { opacity: 0.5 },
   createBtnText: { color: '#fff', fontSize: 17, fontWeight: '700' },
+  // Course selected banner
+  courseSelectedBanner: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, backgroundColor: COLORS.accentLight, borderRadius: RADIUS.md, borderWidth: 1, borderColor: COLORS.accentBorder, padding: SPACING.md },
+  courseSelectedName: { flex: 1, fontSize: 14, fontWeight: '700', color: COLORS.accent },
+
+  // Review card
+  reviewCard: { backgroundColor: COLORS.surface, borderRadius: RADIUS.xl, borderWidth: 1, borderColor: COLORS.border, padding: SPACING.lg, gap: SPACING.md },
+  reviewEventName: { fontSize: 22, fontWeight: '800', color: COLORS.text },
+  reviewRows: { gap: SPACING.sm },
+  reviewRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
+  reviewRowText: { fontSize: 14, color: COLORS.textSecondary },
+  reviewDot: { width: 10, height: 10, borderRadius: 5 },
+  reviewHint: { fontSize: 12, color: COLORS.textMuted, textAlign: 'center', lineHeight: 18 },
+
+  // Course selector modal
+  selectorContainer: { flex: 1, backgroundColor: COLORS.background },
+  selectorHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: SPACING.md, paddingTop: SPACING.lg, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  selectorTitle: { fontSize: 20, fontWeight: '800', color: COLORS.text },
+  selectorEmpty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: SPACING.xl },
+  selectorEmptyText: { fontSize: 14, color: COLORS.textMuted, textAlign: 'center', lineHeight: 22 },
+  courseSelectorCard: { backgroundColor: COLORS.surface, borderRadius: RADIUS.lg, borderWidth: 1, borderColor: COLORS.border, overflow: 'hidden' },
+  courseSelectorHeader: { flexDirection: 'row', alignItems: 'center', padding: SPACING.md, gap: SPACING.sm },
+  courseSelectorName: { fontSize: 15, fontWeight: '700', color: COLORS.text },
+  courseSelectorMeta: { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
+  teesRow: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm, padding: SPACING.md, borderTopWidth: 1, borderTopColor: COLORS.border, backgroundColor: COLORS.surfaceHigh },
+  teePill: { paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm, borderRadius: RADIUS.full, backgroundColor: COLORS.background, borderWidth: 1, borderColor: COLORS.border },
+  teePillSelected: { backgroundColor: COLORS.accent, borderColor: COLORS.accent },
+  teePillText: { fontSize: 13, fontWeight: '600', color: COLORS.textSecondary },
+  teePillTextSelected: { color: '#fff' },
 });

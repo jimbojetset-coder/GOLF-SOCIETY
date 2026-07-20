@@ -552,4 +552,98 @@ const styles = StyleSheet.create({
   // Empty / error
   empty:      { flex: 1, alignItems: 'center', justifyContent: 'center', padding: SPACING.xl },
   emptyTitle: { fontSize: 18, fontWeight: '700', color: COLORS.text },
+
+  // Match status header (top bar with team names + status pill)
+  header: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm,
+    borderBottomWidth: 1, borderBottomColor: COLORS.border,
+    backgroundColor: COLORS.background,
+  },
+  teamLabel: { fontSize: 13, fontWeight: '800', flex: 1 },
+  statusPill: {
+    backgroundColor: COLORS.surfaceHigh, borderRadius: RADIUS.full,
+    borderWidth: 1, borderColor: COLORS.border,
+    paddingHorizontal: 10, paddingVertical: 4,
+  },
+  statusText: { fontSize: 11, fontWeight: '700', color: COLORS.text },
+
+  // Grid scroll container
+  grid: { paddingBottom: SPACING.xl },
+
+  // Generic row/header-cell aliases used by renderHalfGrid
+  row: {
+    flexDirection: 'row',
+    borderBottomWidth: 1, borderBottomColor: COLORS.border,
+    minHeight: CELL_H,
+  },
+  rowAlt: { backgroundColor: COLORS.surfaceHigh },
+  headerCell: { fontSize: 9, fontWeight: '800', color: COLORS.textMuted, letterSpacing: 0.6, textAlign: 'center' },
+
+  holeNumText: { fontSize: 13, fontWeight: '800', color: COLORS.text },
+  holeResultText: { fontSize: 12, fontWeight: '800' },
+
+  totalRow: { backgroundColor: COLORS.surfaceHigh, borderTopWidth: 1.5, borderTopColor: COLORS.border },
+  totalValue: { fontSize: 14, fontWeight: '800', color: COLORS.text },
+  grandTotalRow: { backgroundColor: COLORS.surfaceHigh, borderTopWidth: 2, borderTopColor: COLORS.border },
+  grandTotal: { fontSize: 16, fontWeight: '800', color: COLORS.text },
+
+  // Score cell (used by ScoreCell component)
+  scoreCell: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  scoreCellInner: {
+    width: 32, height: 32, borderRadius: RADIUS.sm,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.border,
+  },
+  scoreCellText: { fontSize: 14, fontWeight: '800' },
+  scoreCellEmpty: {
+    width: 32, height: 32, borderRadius: RADIUS.sm,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: COLORS.surfaceHigh, borderWidth: 1, borderColor: COLORS.border, opacity: 0.6,
+  },
+  scoreCellEmptyText: { fontSize: 12, color: COLORS.textMuted },
+
+  // Finish button
+  finishBtn: {
+    backgroundColor: COLORS.accent, borderRadius: RADIUS.lg,
+    paddingVertical: SPACING.md, alignItems: 'center',
+    marginHorizontal: SPACING.md, marginTop: SPACING.md,
+    ...SHADOW.fab,
+  },
+  finishText: { fontSize: 16, fontWeight: '700', color: COLORS.white },
+
+  // Edit modal
+  modalBackdrop: { ...StyleSheet.absoluteFillObject },
+  editSheet: {
+    backgroundColor: COLORS.surface,
+    borderTopLeftRadius: RADIUS.xl, borderTopRightRadius: RADIUS.xl,
+    padding: SPACING.lg, gap: SPACING.md,
+    borderTopWidth: 1, borderLeftWidth: 1, borderRightWidth: 1, borderColor: COLORS.border,
+    ...SHADOW.cardMd,
+  },
+  editTitle: { fontSize: 18, fontWeight: '800', color: COLORS.text },
+  editSubtitle: { fontSize: 13, color: COLORS.textMuted },
+  quickRow: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm },
+  quickBtn: {
+    width: 34, height: 34, borderRadius: RADIUS.full,
+    backgroundColor: COLORS.surfaceHigh, borderWidth: 1.5, borderColor: COLORS.border,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  quickBtnText: { fontSize: 13, fontWeight: '700', color: COLORS.textMuted },
+  quickBtnTextSelected: { color: COLORS.white },
+  editInput: {
+    backgroundColor: COLORS.surfaceHigh, borderRadius: RADIUS.md,
+    borderWidth: 1.5, textAlign: 'center',
+    fontSize: 28, fontWeight: '800', color: COLORS.text,
+    paddingVertical: SPACING.sm,
+  },
+  editActions: { flexDirection: 'row', gap: SPACING.sm },
+  editCancel: {
+    flex: 1, paddingVertical: SPACING.md, borderRadius: RADIUS.lg,
+    alignItems: 'center', backgroundColor: COLORS.surfaceHigh,
+    borderWidth: 1, borderColor: COLORS.border,
+  },
+  editCancelText: { fontSize: 15, fontWeight: '700', color: COLORS.textSecondary },
+  editConfirm: { flex: 1, paddingVertical: SPACING.md, borderRadius: RADIUS.lg, alignItems: 'center' },
+  editConfirmText: { fontSize: 15, fontWeight: '700', color: COLORS.white },
 });

@@ -389,10 +389,10 @@ export default function ScoringScreen() {
 
       // Highlight detection — check every player's score on this hole
       const candidates: Array<{ score: number | null; player: DBPlayer | undefined }> = [
-        { score: holeData.scoreA,  player: teamA[0] },
-        { score: holeData.scoreA2, player: teamA[1] },
-        { score: holeData.scoreB,  player: teamB[0] },
-        { score: holeData.scoreB2, player: teamB[1] },
+        { score: holeData.scoreA ?? null,  player: teamA[0] },
+        { score: holeData.scoreA2 ?? null, player: teamA[1] },
+        { score: holeData.scoreB ?? null,  player: teamB[0] },
+        { score: holeData.scoreB2 ?? null, player: teamB[1] },
       ];
       for (const { score, player } of candidates) {
         if (score !== null && player) {

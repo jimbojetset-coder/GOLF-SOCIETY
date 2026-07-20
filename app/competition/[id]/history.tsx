@@ -10,9 +10,10 @@
  */
 import React, { useState, useEffect } from 'react';
 import {
-  View, Text, ScrollView, StyleSheet, SafeAreaView,
+  View, Text, ScrollView, StyleSheet,
   ActivityIndicator, TouchableOpacity,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase, parseLocalDate } from '../../../src/api/supabase';
@@ -42,6 +43,11 @@ export default function CompetitionHistoryScreen() {
   const [matches, setMatches] = useState<any[]>([]);
   const [playerStats, setPlayerStats] = useState<any[]>([]);
   const [highlights, setHighlights] = useState<any[]>([]);
+
+  // Hole-by-hole drill-down state
+  const [expandedMatchId, setExpandedMatchId] = useState<string | null>(null);
+  const [matchScoresMap, setMatchScoresMap] = useState<Record<string, any[]>>({});
+  const [loadingScores, setLoadingScores] = useState<Record<string, boolean>>({});
 
   useEffect(() => { if (id) load(); }, [id]);
 
@@ -81,6 +87,26 @@ export default function CompetitionHistoryScreen() {
     setHighlights(hlData ?? []);
 
     setLoading(false);
+  };
+
+  const loadMatchScores = async (matchId: string) => {
+    if (expandedMatchId === matchId) {
+      setExpandedMatchId(null);
+      return;
+    }
+    if (matchScoresMap[matchId]) {
+      setExpandedMatchId(matchId);
+      return;
+    }
+    setLoadingScores(prev => ({ ...prev, [matchId]: true }));
+    const { data } = await supabase
+      .from('match_scores')
+      .select('*')
+      .eq('match_id', matchId)
+      .order('hole_number');
+    setMatchScoresMap(prev => ({ ...prev, [matchId]: data ?? [] }));
+    setExpandedMatchId(matchId);
+    setLoadingScores(prev => ({ ...prev, [matchId]: false }));
   };
 
   if (loading) {
@@ -244,6 +270,65 @@ export default function CompetitionHistoryScreen() {
                   ))}
                 </View>
               </View>
+
+              {/* Hole-by-hole toggle */}
+              <TouchableOpacity style={styles.scorecardToggle} onPress={() => loadMatchScores(match.id)}>
+                {loadingScores[match.id] ? (
+                  <ActivityIndicator size="small" color={COLORS.accent} />
+                ) : (
+                  <>
+                    <Ionicons name="grid-outline" size={13} color={COLORS.accent} />
+                    <Text style={styles.scorecardToggleText}>
+                      {expandedMatchId === match.id ? 'Hide scorecard' : 'View hole-by-hole'}
+                    </Text>
+                    <Ionicons name={expandedMatchId === match.id ? 'chevron-up' : 'chevron-down'} size={12} color={COLORS.accent} />
+                  </>
+                )}
+              </TouchableOpacity>
+
+              {/* Expandable hole-by-hole scorecard */}
+              {expandedMatchId === match.id && matchScoresMap[match.id] && (
+                <View style={styles.scorecardView}>
+                  <View style={[styles.scRow, styles.scRowHeader]}>
+                    <Text style={[styles.scCell, styles.scCellHdr, { flex: 0.5 }]}>H</Text>
+                    <Text style={[styles.scCell, styles.scCellHdr]}>Par</Text>
+                    <Text style={[styles.scCell, styles.scCellHdr]}>SI</Text>
+                    {playersA.map((n: string, i: number) => (
+                      <Text key={i} style={[styles.scCell, styles.scCellHdr, { color: competition.team_a_colour }]} numberOfLines={1}>
+                        {n.split(' ')[0]}
+                      </Text>
+                    ))}
+                    {playersB.map((n: string, i: number) => (
+                      <Text key={i} style={[styles.scCell, styles.scCellHdr, { color: competition.team_b_colour }]} numberOfLines={1}>
+                        {n.split(' ')[0]}
+                      </Text>
+                    ))}
+                    <Text style={[styles.scCell, styles.scCellHdr]}>Res</Text>
+                  </View>
+                  {matchScoresMap[match.id].map((score: any) => (
+                    <View key={score.hole_number} style={[styles.scRow, score.hole_number % 2 === 0 && styles.scRowAlt]}>
+                      <Text style={[styles.scCell, { flex: 0.5, fontWeight: '800', color: COLORS.accent }]}>{score.hole_number}</Text>
+                      <Text style={styles.scCell}>{score.par ?? '—'}</Text>
+                      <Text style={styles.scCell}>{score.stroke_index ?? '—'}</Text>
+                      <Text style={[styles.scCell, { color: competition.team_a_colour, fontWeight: '700' }]}>{score.score_a ?? '—'}</Text>
+                      {playersA.length > 1 && <Text style={[styles.scCell, { color: competition.team_a_colour }]}>{score.score_a_player2 ?? '—'}</Text>}
+                      <Text style={[styles.scCell, { color: competition.team_b_colour, fontWeight: '700' }]}>{score.score_b ?? '—'}</Text>
+                      {playersB.length > 1 && <Text style={[styles.scCell, { color: competition.team_b_colour }]}>{score.score_b_player2 ?? '—'}</Text>}
+                      <Text style={[styles.scCell, {
+                        fontWeight: '800',
+                        color: score.hole_result === 'A' ? competition.team_a_colour
+                          : score.hole_result === 'B' ? competition.team_b_colour
+                          : COLORS.textMuted,
+                      }]}>
+                        {score.hole_result === 'halved' ? '½' : score.hole_result ?? '—'}
+                      </Text>
+                    </View>
+                  ))}
+                  {matchScoresMap[match.id].length === 0 && (
+                    <Text style={styles.scEmpty}>No scores recorded for this match</Text>
+                  )}
+                </View>
+              )}
             </View>
           );
         })}
@@ -447,6 +532,25 @@ const styles = StyleSheet.create({
 
   // Notes
   notesText: { fontSize: 14, color: COLORS.textSecondary, lineHeight: 22 },
+
+  // Hole-by-hole scorecard
+  scorecardToggle: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingTop: SPACING.sm, borderTopWidth: 1, borderTopColor: COLORS.border,
+    marginTop: SPACING.xs,
+  },
+  scorecardToggleText: { fontSize: 12, fontWeight: '600', color: COLORS.accent, flex: 1 },
+  scorecardView: {
+    borderRadius: RADIUS.md, overflow: 'hidden',
+    borderWidth: 1, borderColor: COLORS.border,
+    marginTop: SPACING.sm,
+  },
+  scRow: { flexDirection: 'row', paddingHorizontal: SPACING.sm, paddingVertical: 7, alignItems: 'center' },
+  scRowHeader: { backgroundColor: COLORS.surfaceHigh },
+  scRowAlt: { backgroundColor: COLORS.background + '88' },
+  scCell: { flex: 1, fontSize: 12, color: COLORS.text, textAlign: 'center' },
+  scCellHdr: { fontSize: 9, fontWeight: '800', color: COLORS.textMuted, letterSpacing: 0.5 },
+  scEmpty: { fontSize: 12, color: COLORS.textMuted, textAlign: 'center', padding: SPACING.md },
 
   // Empty
   empty:      { flex: 1, alignItems: 'center', justifyContent: 'center', padding: SPACING.xl },

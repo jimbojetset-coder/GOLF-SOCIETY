@@ -7,9 +7,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
-  StyleSheet, SafeAreaView, ActivityIndicator,
+  StyleSheet, ActivityIndicator,
   RefreshControl, Alert, StatusBar,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase, parseLocalDate } from '../../../src/api/supabase';
@@ -56,6 +57,28 @@ export default function CompetitionDetailScreen() {
   }, [id]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Realtime: re-load whenever matches or competition changes
+  useEffect(() => {
+    if (!id) return;
+    const channel = supabase
+      .channel(`comp-detail-${id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'matches', filter: `competition_id=eq.${id}` }, () => load())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'competitions', filter: `id=eq.${id}` }, () => load())
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [id, load]);
+
+  const shareParticipantLink = async () => {
+    if (!competition?.share_token) return;
+    const url = `golfscoring://join/${competition.share_token}`;
+    try {
+      await Share.share({
+        message: `Follow ${competition.name} — view the live leaderboard:\n\n${url}`,
+        title: `Join ${competition.name}`,
+      });
+    } catch (_) {}
+  };
 
   const shareScorerLink = async (match: any) => {
     if (!match.scorer_share_token) return;
@@ -271,6 +294,17 @@ export default function CompetitionDetailScreen() {
         {/* Organiser controls */}
         {isCreator && (
           <View style={styles.orgControls}>
+            {/* Share as Participant — separate from per-match scorer links */}
+            {competition.share_token && (
+              <TouchableOpacity style={styles.participantShareBtn} onPress={shareParticipantLink} activeOpacity={0.85}>
+                <Ionicons name="eye-outline" size={16} color={COLORS.accent} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.participantShareTitle}>Share as Participant</Text>
+                  <Text style={styles.participantShareHint}>Viewers follow leaderboard only — can't score</Text>
+                </View>
+                <Ionicons name="share-outline" size={16} color={COLORS.accent} />
+              </TouchableOpacity>
+            )}
             {competition.status === 'active' && (
               <TouchableOpacity style={styles.closeBtn} onPress={closeCompetition} activeOpacity={0.85}>
                 <Text style={styles.closeBtnText}>Close Competition & Reveal Results</Text>
@@ -461,4 +495,13 @@ const styles = StyleSheet.create({
 
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: SPACING.xl },
   emptyTitle: { fontSize: 18, fontWeight: '700', color: COLORS.text },
+
+  // Participant share button
+  participantShareBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: SPACING.sm,
+    backgroundColor: COLORS.accentLight, borderWidth: 1, borderColor: COLORS.accentBorder,
+    borderRadius: RADIUS.lg, padding: SPACING.md,
+  },
+  participantShareTitle: { fontSize: 14, fontWeight: '700', color: COLORS.accent },
+  participantShareHint: { fontSize: 11, color: COLORS.textMuted, marginTop: 1 },
 });

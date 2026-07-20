@@ -10,7 +10,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { supabase } from '../../api/supabase';
 import { COLORS, SPACING, RADIUS } from '../../constants/theme';
 import { HERO_IMAGES } from '../../constants/heroImages';
@@ -41,13 +41,13 @@ export default function HeroImagePicker({ value, onChange }: Props) {
 
     const result = source === 'camera'
       ? await ImagePicker.launchCameraAsync({
-          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          mediaTypes: 'images',
           allowsEditing: true,
           aspect: [16, 9],
           quality: 1,
         })
       : await ImagePicker.launchImageLibraryAsync({
-          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          mediaTypes: 'images',
           allowsEditing: true,
           aspect: [16, 9],
           quality: 1,
